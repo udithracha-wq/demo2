@@ -1,0 +1,30 @@
+---
+description: Project context — always refer to automation prompt files and skills
+alwaysApply: true
+---
+
+# Project Context
+
+Always refer to these files when working on this project:
+
+* `automation_setup_prompt.md` — framework setup guidelines
+* `script_generation.md` — how to generate new BDD automation
+* `test_debugging_prompt.md` — debugging instructions and patterns
+
+## Cursor wiring
+
+* Skills: `.cursor/skills/automation-setup`, `script-generation`, `test-debugging`
+* File-scoped rule: `.cursor/rules/playwright-bdd.mdc`
+
+## Architecture (non-negotiable)
+
+This repo is **BDD-only**:
+
+```
+Feature Files → Step Definitions → Page Objects
+   (WHAT)          (GLUE)            (HOW)
+```
+
+* Do **not** create new Playwright `.spec.ts` tests for coverage
+* Step defs call Page Object methods (no raw selectors in steps)
+* Prefer fluent waits; avoid `waitForTimeout()`

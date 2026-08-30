@@ -1,0 +1,37 @@
+---
+description: Playwright BDD conventions for features, steps, and page objects
+globs: features/**/*.{feature,ts,js}, pages/**/*.{ts,js}, **/cucumber.js, **/playwright.config.*
+alwaysApply: false
+---
+
+# Playwright BDD Conventions
+
+## Folder layout
+
+* Features: `features/*.feature`
+* Step defs: `features/step-definitions/*.steps.ts`
+* World/hooks: `features/step-definitions/world.ts`, `hooks.ts`
+* Page Objects: `pages/*.ts`
+
+## Hard rules
+
+* No new `.spec.ts` for coverage — use `.feature` + steps + pages
+* Steps must call Page Object methods; no CSS/XPath in step defs
+* Codegen / outerHTML is the source of truth for locators
+* Reuse existing steps/POs before adding new ones
+* Same underlying action → one idempotent step (don't duplicate for wording)
+
+## Locator preference
+
+1. `getByRole()` / `getByLabel()` / `getByText()`
+2. XPath with `normalize-space()` if needed
+3. CSS last resort
+
+## Cucumber baseURL
+
+Set `baseURL` in World `newContext()` — Cucumber does **not** read `playwright.config.ts` baseURL.
+
+## Run commands
+
+* All: `npm run bdd`
+* By tag: `npm run bdd:tags "@TagName"`

@@ -1,0 +1,39 @@
+{
+  "name": "playwright-bdd-framework",
+  "version": "1.0.0",
+  "description": "BDD-only Playwright + Cucumber automation framework with Page Object Model",
+  "private": true,
+  "scripts": {
+    "bdd": "cucumber-js",
+    "bdd:tags": "cucumber-js --tags",
+    "bdd:headed": "HEADLESS=false cucumber-js",
+    "auth:save": "tsx scripts/save-sf-session.ts",
+    "codegen": "playwright codegen",
+    "allure:generate": "allure generate allure-results --clean -o allure-report",
+    "allure:open": "allure open allure-report",
+    "allure:serve": "allure serve allure-results",
+    "report": "npm run allure:generate && npm run allure:open"
+  },
+  "keywords": [
+    "playwright",
+    "cucumber",
+    "bdd",
+    "automation"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@cucumber/cucumber": "^13.2.1",
+    "@playwright/test": "^1.62.1",
+    "allure-cucumberjs": "^3.11.0",
+    "allure-playwright": "^3.11.0",
+    "dotenv": "^17.4.2",
+    "playwright": "^1.62.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "allure-commandline": "^2.43.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  }
+}
