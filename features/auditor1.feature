@@ -1,5 +1,5 @@
-@Regression @NYselections @EligibilityDashboard @End_to_End
-Feature: NYselections Eligibility Dashboard
+@Regression @NYselections @Auditor1 @End_to_End
+Feature: NYselections Auditor1
   Log into Lightning, open a case, select party, and complete the Eligibility Dashboard questionnaire.
 
   Scenario Outline: Complete eligibility questionnaire for a party
@@ -10,10 +10,10 @@ Feature: NYselections Eligibility Dashboard
     And I open the Details tab
     And I set Primary Auditor to "<PrimaryAuditor>"
     And I open the Eligibility Dashboard tab
-    And I select "<Party>" for party selection
+    And I select "<Party>" for party selection if present
     And I complete the eligibility questionnaire answering Yes
     Then I should see case "<CaseNumber>"
 
     Examples:
-      | CaseNumber | Party      | PrimaryAuditor  |
-      | 00001272   | Republican | Aashritha Sanku |
+      | CaseNumber           | Party      | PrimaryAuditor |
+      |  00120464            | Republican | Udith Racha    |

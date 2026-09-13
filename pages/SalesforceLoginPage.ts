@@ -47,13 +47,16 @@ export class SalesforceLoginPage {
     });
   }
 
-  private async isOnLightningHome(): Promise<boolean> {
+  private isLightningHost(url: string = this.page.url()): boolean {
     try {
-      const host = new URL(this.page.url()).hostname;
-      if (!host.includes('lightning.force.com')) return false;
+      return new URL(url).hostname.includes('lightning.force.com');
     } catch {
       return false;
     }
+  }
+
+  private async isOnLightningHome(): Promise<boolean> {
+    if (!this.isLightningHost()) return false;
 
     const onMfa = await this.page
       .getByText('Email sent!')
@@ -67,13 +70,36 @@ export class SalesforceLoginPage {
     return !onMfa && !onLogin;
   }
 
+  /** Wait for SSO redirects to settle into Lightning (or stay on login/MFA). */
+  private async waitForSessionSettle(timeoutMs = 45_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await this.isOnLightningHome()) return true;
+
+      const onLogin = await this.page
+        .getByRole('textbox', { name: 'Your username (user@domain)' })
+        .isVisible()
+        .catch(() => false);
+      const onMfa = await this.page
+        .getByText(/Email sent|Enter code|Authenticate/i)
+        .first()
+        .isVisible()
+        .catch(() => false);
+
+      if (onLogin || onMfa) return false;
+
+      await this.page.waitForTimeout(500);
+    }
+    return this.isOnLightningHome();
+  }
+
   /**
    * Use saved session when possible; only prompt Idaptive when needed.
    */
   async ensureLoggedIn(): Promise<void> {
     await this.openLightningHome();
 
-    if (await this.isOnLightningHome()) {
+    if (await this.waitForSessionSettle()) {
       console.log('Reusing saved Salesforce session (.auth/nyselections.json)');
       return;
     }
@@ -95,7 +121,7 @@ export class SalesforceLoginPage {
 
     if (navigateFirst) {
       await this.openLightningHome();
-      if (await this.isOnLightningHome()) {
+      if (await this.waitForSessionSettle()) {
         return;
       }
     }
@@ -114,13 +140,29 @@ export class SalesforceLoginPage {
       await passwordField.press('Enter');
     }
 
-    const mfaField = this.page
-      .getByRole('textbox', { name: /Enter code|code/i })
-      .or(this.page.locator('input[type="text"], input[type="tel"]').last());
+    // After password: either MFA challenge OR direct redirect to Lightning
+    const mfaMarker = this.page
+      .getByText(/Email sent|Enter code|Authenticate/i)
+      .first();
+    const outcome = await Promise.race([
+      mfaMarker
+        .waitFor({ state: 'visible', timeout: 90_000 })
+        .then(() => 'mfa' as const),
+      this.page
+        .waitForURL(/lightning\.force\.com/, { timeout: 90_000 })
+        .then(() => 'lightning' as const),
+    ]).catch(() => null);
 
-    await expect(
-      this.page.getByText(/Email sent|Enter code|Authenticate/i).first()
-    ).toBeVisible({ timeout: 30_000 });
+    if (outcome === 'lightning' || (await this.isOnLightningHome())) {
+      console.log('Logged into Lightning without MFA challenge');
+      return;
+    }
+
+    if (outcome !== 'mfa') {
+      throw new Error(
+        'Login did not reach MFA or Lightning. Re-run: npm run auth:save'
+      );
+    }
 
     if (!mfaCode) {
       throw new Error(
@@ -128,6 +170,10 @@ export class SalesforceLoginPage {
           'Run: npm run auth:save  — or set a fresh SF_MFA_CODE in .env'
       );
     }
+
+    const mfaField = this.page
+      .getByRole('textbox', { name: /Enter code|code/i })
+      .or(this.page.locator('input[type="text"], input[type="tel"]').last());
 
     await expect(mfaField.first()).toBeVisible({ timeout: 30_000 });
     await mfaField.first().click();

@@ -9,6 +9,10 @@ import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SalesforceLoginPage } from '../../pages/SalesforceLoginPage';
+import type {
+  ContributorCodeChange,
+  ReportRow,
+} from '../../pages/RepeatContributorCodePage';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -25,6 +29,12 @@ export class CustomWorld extends World {
 
   /** Shared scenario data — extend as needed */
   testData: Record<string, string> = {};
+
+  /** Repeat Contributor Code align results for the current scenario */
+  contributorCodeChanges: ContributorCodeChange[] = [];
+
+  /** Cached report scan from align (used to skip verify re-scan when clean) */
+  scannedContributorRows: ReportRow[] | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

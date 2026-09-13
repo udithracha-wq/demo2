@@ -9,8 +9,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CustomWorld } from './world';
 
-// Salesforce login + Lightning flows need far more than the 5s default
-setDefaultTimeout(180_000);
+// Salesforce login + multi-flag Repeat Contributor flows need a long budget
+setDefaultTimeout(600_000);
 
 Before(async function (this: CustomWorld) {
   await this.init();

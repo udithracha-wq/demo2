@@ -6,6 +6,14 @@ import {
   lightningHomeUrl,
 } from './SalesforceLoginPage';
 
+/** Structural select shape for page.evaluate (tsconfig has no DOM lib). */
+type SelectLike = {
+  disabled: boolean;
+  selectedIndex: number;
+  options: ArrayLike<{ textContent: string | null; value: string }>;
+  getAttribute(name: string): string | null;
+};
+
 /**
  * Auditor1 flow: Case record + Eligibility Dashboard wizard.
  * Locators from codegen-output/codegen-nyselections-20260828-214339.ts
@@ -106,16 +114,16 @@ export class Auditor1Page extends BasePage {
     }
 
     const searchBtn = this.page.getByRole('button', { name: 'Search' });
-    const searchbox = this.page
-      .getByRole('searchbox', { name: 'Search...' })
-      .or(this.page.getByPlaceholder('Search...'));
+    const searchHost = this.page.locator('lightning-input.saInput');
 
     await expect(searchBtn).toBeVisible({ timeout: 60_000 });
-    await searchBtn.click();
-    await expect(searchbox.first()).toBeVisible({ timeout: 30_000 });
-
-    await searchbox.first().fill(caseNumber);
-    await searchbox.first().press('Enter');
+    if ((await searchHost.count()) === 0) {
+      await searchBtn.click();
+    }
+    await expect(searchHost).toBeAttached({ timeout: 15_000 });
+    await searchHost.click({ force: true }).catch(() => undefined);
+    await this.page.keyboard.type(caseNumber);
+    await this.page.keyboard.press('Enter');
 
     // Results: click the Case number link (not Transaction T-… links)
     const caseLink = this.page
@@ -259,7 +267,7 @@ export class Auditor1Page extends BasePage {
         const done = new Set(already as string[]);
 
         for (const el of els) {
-          const select = el as HTMLSelectElement;
+          const select = el as SelectLike;
           const name = select.getAttribute('name') ?? '';
           if (!name || skip.test(name) || select.disabled || done.has(name)) {
             continue;
@@ -324,7 +332,7 @@ export class Auditor1Page extends BasePage {
       });
 
       const nowYes = await pick.evaluate((el) => {
-        const s = el as HTMLSelectElement;
+        const s = el as SelectLike;
         return /^yes$/i.test(
           (s.options[s.selectedIndex]?.textContent ?? '').trim()
         );
@@ -353,7 +361,7 @@ export class Auditor1Page extends BasePage {
         const skip = /Political_Party|Election_Type/i;
         return els
           .map((el) => {
-            const select = el as HTMLSelectElement;
+            const select = el as SelectLike;
             const name = select.getAttribute('name') ?? '';
             if (!name || skip.test(name) || select.disabled) return null;
             const labels = Array.from(select.options).map((o) =>
@@ -407,7 +415,7 @@ export class Auditor1Page extends BasePage {
 
     const current = await select
       .evaluate((el) => {
-        const s = el as HTMLSelectElement;
+        const s = el as SelectLike;
         return (s.options[s.selectedIndex]?.textContent ?? '').trim();
       })
       .catch(() => '');
@@ -430,7 +438,7 @@ export class Auditor1Page extends BasePage {
         const skip = /Political_Party|Election_Type/i;
         const done = new Set(already as string[]);
         return els.some((el) => {
-          const select = el as HTMLSelectElement;
+          const select = el as SelectLike;
           const name = select.getAttribute('name') ?? '';
           if (!name || skip.test(name) || select.disabled || done.has(name)) {
             return false;
@@ -463,7 +471,7 @@ export class Auditor1Page extends BasePage {
       .evaluateAll((els) => {
         const skip = /Political_Party|Election_Type/i;
         return els.some((el) => {
-          const select = el as HTMLSelectElement;
+          const select = el as SelectLike;
           const name = select.getAttribute('name') ?? '';
           if (skip.test(name)) return false;
           const labels = Array.from(select.options).map((o) =>
