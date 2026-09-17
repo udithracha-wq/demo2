@@ -16,7 +16,8 @@
   "include": [
     "features/**/*.ts",
     "pages/**/*.ts",
-    "support/**/*.ts"
+    "support/**/*.ts",
+    "tests/**/*.ts"
   ],
   "exclude": [
     "node_modules",

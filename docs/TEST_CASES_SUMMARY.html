@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>NYselections BDD Test Cases Summary</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; max-width: 900px; margin: 24px; color: #222; }
+h1 { font-size: 20pt; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+h2 { font-size: 14pt; margin-top: 22px; }
+h3 { font-size: 12pt; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; }
+code, pre { font-family: Consolas, monospace; font-size: 10pt; }
+pre { background: #f7f7f7; padding: 10px; border: 1px solid #ddd; overflow-x: auto; }
+ul { margin: 8px 0; }
+hr { border: none; border-top: 1px solid #ccc; margin: 20px 0; }
+</style>
+</head>
+<body>
+<h1>NYselections BDD Automation - Test Cases Summary</h1>
+<p>Document of all automation work completed so far for the Playwright ++ Cucumber BDD framework.</p>
+<h2>Framework Overview</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Item</th>
+<th style="text-align:left">Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Stack</td>
+<td style="text-align:left">Playwright ++ Cucumber (BDD-only)</td>
+</tr>
+<tr>
+<td style="text-align:left">Pattern</td>
+<td style="text-align:left">Feature → Step Definitions → Page Objects</td>
+</tr>
+<tr>
+<td style="text-align:left">App under test</td>
+<td style="text-align:left">NYselections Lightning (Salesforce)</td>
+</tr>
+<tr>
+<td style="text-align:left">Reporting</td>
+<td style="text-align:left">Allure ++ console / JSON side reports for some flows</td>
+</tr>
+<tr>
+<td style="text-align:left">Auth</td>
+<td style="text-align:left">Salesforce login via env credentials ++ optional saved session (<code>npm run auth:save</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3>Architecture</h3>
+<pre><code>features/*.feature          → WHAT (business scenarios)
+features/step-definitions/  → GLUE (Cucumber steps)
+pages/*.ts                  → HOW (locators &amp; UI actions)
+</code></pre>
+<h3>How to Run</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Command</th>
+<th style="text-align:left">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>npm run bdd</code></td>
+<td style="text-align:left">Run all scenarios</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@TagName&quot;</code></td>
+<td style="text-align:left">Run by tag (e.g. <code>@DuplicateTransaction</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run bdd:headed</code></td>
+<td style="text-align:left">Run headed (visible browser)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run report</code></td>
+<td style="text-align:left">Generate +&amp; open Allure report</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Test Inventory</h2>
+<p>Total: <strong>10 features</strong>, <strong>11 scenario examples</strong> (Empty Error Message has 2 Examples rows).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">+#</th>
+<th style="text-align:left">Feature</th>
+<th style="text-align:left">Tag(s)</th>
+<th style="text-align:left">Case +#</th>
+<th style="text-align:left">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">Framework smoke check</td>
+<td style="text-align:left"><code>@Sanity</code> <code>@Smoke</code></td>
+<td style="text-align:left">N/A (example.com)</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">NYselections Auditor1</td>
+<td style="text-align:left"><code>@Auditor1</code> <code>@End_to_End</code></td>
+<td style="text-align:left">00120464</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left">Duplicate Transaction</td>
+<td style="text-align:left"><code>@DuplicateTransaction</code></td>
+<td style="text-align:left">00120877</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">4</td>
+<td style="text-align:left">Repeat Contributor Code</td>
+<td style="text-align:left"><code>@RepeatContributorCode</code></td>
+<td style="text-align:left">00120859</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">5</td>
+<td style="text-align:left">Clear Shared Contributor Code</td>
+<td style="text-align:left"><code>@ClearSharedContributorCode</code></td>
+<td style="text-align:left">00120859</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">6</td>
+<td style="text-align:left">Is District (No)</td>
+<td style="text-align:left"><code>@IsDistrict</code></td>
+<td style="text-align:left">00120857</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">7</td>
+<td style="text-align:left">Is District Yes</td>
+<td style="text-align:left"><code>@IsDistrictYes</code></td>
+<td style="text-align:left">00120877</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">8</td>
+<td style="text-align:left">Verification Agree</td>
+<td style="text-align:left"><code>@VerificationAgree</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">9</td>
+<td style="text-align:left">Verification Disagree</td>
+<td style="text-align:left"><code>@VerificationDisagree</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Done</td>
+</tr>
+<tr>
+<td style="text-align:left">10</td>
+<td style="text-align:left">Empty Error Message</td>
+<td style="text-align:left"><code>@EmptyErrorMessage</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Done</td>
+</tr>
+</tbody>
+</table>
+<p>All NYselections features also carry <code>@Regression</code> <code>@NYselections</code> <code>@End_to_End</code>.</p>
+<hr>
+<h2>Feature Details</h2>
+<h3>1. Framework smoke check</h3>
+<p><strong>File:</strong> <code>features/smoke.feature</code></p>
+<p>Verifies the BDD framework can launch a browser and open a page (example.com). Not an app business test.</p>
+<h3>Scenario</h3>
+<ul>
+<li>Open application home page</li>
+<li>Assert title, heading, and URL</li>
+</ul>
+<hr>
+<h3>2. NYselections Auditor1</h3>
+<p><strong>File:</strong> <code>features/auditor1.feature</code><br>
+<strong>Page Object:</strong> <code>pages/Auditor1Page.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/auditor1.steps.ts</code></p>
+<p>Log into Lightning, open a case, select party, set Primary Auditor, and complete the Eligibility Dashboard questionnaire (all Yes).</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+<th style="text-align:left">Party</th>
+<th style="text-align:left">PrimaryAuditor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120464</td>
+<td style="text-align:left">Republican</td>
+<td style="text-align:left">Udith Racha</td>
+</tr>
+</tbody>
+</table>
+<h3>Flow</h3>
+<ul>
+<li>Login to NYselections Lightning</li>
+<li>Open case</li>
+<li>Select party (if present) → Next (if present)</li>
+<li>Details tab → set Primary Auditor</li>
+<li>Eligibility Dashboard → party again if needed</li>
+<li>Complete eligibility questionnaire answering Yes</li>
+<li>Assert case is visible</li>
+</ul>
+<hr>
+<h3>3. Duplicate Transaction</h3>
+<p><strong>File:</strong> <code>features/duplicate-transaction.feature</code><br>
+<strong>Page Object:</strong> <code>pages/DuplicateTransactionPage.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/duplicate-transaction.steps.ts</code></p>
+<p>Search a case, open the duplicate transaction report, clear flags on all flagged rows across pages, Finish so removals persist, refresh, and assert no Flagged rows remain.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120877</td>
+</tr>
+</tbody>
+</table>
+<h3>Flow</h3>
+<ul>
+<li>Login → search +&amp; open case</li>
+<li>Open duplicate transaction report</li>
+<li>Clear duplicate flags on all flagged transactions (all pages)</li>
+<li>Next → close dialog</li>
+<li>Assert case visible, report affected transaction numbers</li>
+<li>Assert no flagged transactions remain</li>
+</ul>
+<hr>
+<h3>4. Repeat Contributor Code</h3>
+<p><strong>File:</strong> <code>features/repeat-contributor-code.feature</code><br>
+<strong>Page Object:</strong> <code>pages/RepeatContributorCodePage.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/repeat-contributor-code.steps.ts</code></p>
+<p>Rows that share the same Contributor Full Name must share the same Repeat Contributor Code. Mixed codes are aligned via the edit icon and save.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120859</td>
+</tr>
+</tbody>
+</table>
+<h3>Side report</h3>
+<ul>
+<li>Console output</li>
+<li><code>reports/repeat-contributor-code-changes.json</code> (Contributor Full Name, Old Code, New Code)</li>
+</ul>
+<h3>Flow</h3>
+<ul>
+<li>Login → search +&amp; open case</li>
+<li>Open Repeat Contributor Report</li>
+<li>Align codes for duplicate contributor names</li>
+<li>Assert change report +&amp; all duplicate names share the same code</li>
+</ul>
+<hr>
+<h3>5. Clear Shared Repeat Contributor Code</h3>
+<p><strong>File:</strong> <code>features/clear-shared-contributor-code.feature</code><br>
+<strong>Page Object:</strong> <code>pages/RepeatContributorCodePage.ts</code> (shared)<br>
+<strong>Steps:</strong> <code>features/step-definitions/clear-shared-contributor-code.steps.ts</code></p>
+<p>A Repeat Contributor Code that appears on different Contributor Full Name groups must be cleared from minority name group(s). Majority name keeps the code. Scans every report page.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120859</td>
+</tr>
+</tbody>
+</table>
+<h3>Side report</h3>
+<ul>
+<li>Console output</li>
+<li><code>reports/clear-shared-contributor-code-changes.json</code></li>
+</ul>
+<h3>Flow</h3>
+<ul>
+<li>Login → search +&amp; open case</li>
+<li>Open Repeat Contributor Report</li>
+<li>Clear codes shared across different names</li>
+<li>Assert change report +&amp; no code shared across different names</li>
+</ul>
+<hr>
+<h3>6. Is District (set to No)</h3>
+<p><strong>File:</strong> <code>features/isdistrict.feature</code><br>
+<strong>Page Object:</strong> <code>pages/IsDistrictPage.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/isdistrict.steps.ts</code></p>
+<p>Open Audit Matching Claim Data, set empty In District Confirmed values to <strong>No</strong> on every report page, Save, and report transaction numbers marked No.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120857</td>
+</tr>
+</tbody>
+</table>
+<h3>Flow</h3>
+<ul>
+<li>Login → search +&amp; open case</li>
+<li>Open Audit Matching Claim Data</li>
+<li>Set empty In District Confirmed → No (all pages)</li>
+<li>Save → assert success</li>
+<li>Report transaction numbers marked No</li>
+</ul>
+<hr>
+<h3>7. Is District Yes</h3>
+<p><strong>File:</strong> <code>features/isdistrict-yes.feature</code><br>
+<strong>Page Object:</strong> <code>pages/IsDistrictPage.ts</code> (shared)<br>
+<strong>Steps:</strong> <code>features/step-definitions/isdistrict.steps.ts</code> (shared)</p>
+<p>Same flow as Is District, but empty values are set to <strong>Yes</strong>.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120877</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>8. Verification Agree</h3>
+<p><strong>File:</strong> <code>features/verification-agree.feature</code><br>
+<strong>Page Object:</strong> <code>pages/VerificationAgreePage.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/verification-agree.steps.ts</code></p>
+<p>Open Random Sampling Records, set every empty Verifier Status to <strong>Agree</strong> on all pages, Save, confirm success, and report transaction numbers.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120861</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>9. Verification Disagree</h3>
+<p><strong>File:</strong> <code>features/verification-disagree.feature</code><br>
+<strong>Page Object:</strong> <code>pages/VerificationAgreePage.ts</code> (shared)<br>
+<strong>Steps:</strong> <code>features/step-definitions/verification-agree.steps.ts</code> (shared Agree/Disagree)</p>
+<p>Same flow as Verification Agree, but empty Verifier Status is set to <strong>Disagree</strong>.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120861</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>10. Empty Error Message</h3>
+<p><strong>File:</strong> <code>features/empty-error-message.feature</code><br>
+<strong>Page Objects:</strong> <code>pages/EmptyErrorMessagePage.ts</code> ++ <code>pages/VerificationAgreePage.ts</code><br>
+<strong>Steps:</strong> <code>features/step-definitions/empty-error-message.steps.ts</code></p>
+<p>When Random Sampling Records still has empty Verifier Status fields, Accept or Reject from Approval History must show the incomplete review error. Covers both approval actions via Examples.</p>
+<h3>Scenario Outline data</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">CaseNumber</th>
+<th style="text-align:left">ApprovalAction</th>
+<th style="text-align:left">Comments</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Reject</td>
+<td style="text-align:left">test</td>
+</tr>
+<tr>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Accept</td>
+<td style="text-align:left">test</td>
+</tr>
+</tbody>
+</table>
+<h3>Flow</h3>
+<ul>
+<li>Login → search +&amp; open case</li>
+<li>Open Random Sampling Records</li>
+<li>Verify empty Verifier Status fields exist (precondition)</li>
+<li>Close Random Sampling Records</li>
+<li>Choose Accept or Reject from Approval History with comments</li>
+<li>Assert incomplete review error message</li>
+<li>Cancel +&amp; close approval dialog</li>
+<li>Report all empty Verifier Status transaction numbers</li>
+</ul>
+<hr>
+<h2>Page Object Map</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Page Object</th>
+<th style="text-align:left">Used by features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>BasePage.ts</code></td>
+<td style="text-align:left">Shared base (goto, waits)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HomePage.ts</code></td>
+<td style="text-align:left">Smoke</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>SalesforceLoginPage.ts</code></td>
+<td style="text-align:left">All NYselections login</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Auditor1Page.ts</code></td>
+<td style="text-align:left">Auditor1</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>DuplicateTransactionPage.ts</code></td>
+<td style="text-align:left">Duplicate Transaction (also provides shared case search helpers)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>RepeatContributorCodePage.ts</code></td>
+<td style="text-align:left">Repeat Contributor Code, Clear Shared Contributor Code</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>IsDistrictPage.ts</code></td>
+<td style="text-align:left">Is District, Is District Yes</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>VerificationAgreePage.ts</code></td>
+<td style="text-align:left">Verification Agree, Verification Disagree, Empty Error Message (empty-status scan)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>EmptyErrorMessagePage.ts</code></td>
+<td style="text-align:left">Empty Error Message (Approval History actions)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Supporting Files</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Path</th>
+<th style="text-align:left">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>features/step-definitions/world.ts</code></td>
+<td style="text-align:left">Cucumber World (browser, page, testData)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>features/step-definitions/hooks.ts</code></td>
+<td style="text-align:left">Before/After hooks</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>features/step-definitions/common.steps.ts</code></td>
+<td style="text-align:left">Shared steps (e.g. login)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>cucumber.js</code></td>
+<td style="text-align:left">Cucumber config</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>scripts/save-sf-session.ts</code></td>
+<td style="text-align:left">Persist Salesforce session</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Conventions Followed</h2>
+<ul>
+<li>BDD-only — no Playwright <code>.spec.ts</code> for coverage</li>
+<li>Steps call Page Object methods only (no raw selectors in steps)</li>
+<li>Prefer <code>getByRole</code> / <code>getByLabel</code> / <code>getByText</code>; XPath with <code>normalize-space()</code> when needed</li>
+<li>Fluent waits; avoid hard <code>waitForTimeout()</code></li>
+<li>Scenario Outline ++ Examples for case-driven data</li>
+<li>Shared Page Objects reused across related Agree/Disagree and Yes/No variants</li>
+</ul>
+<hr>
+<h2>Suggested Tag Runs</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Goal</th>
+<th style="text-align:left">Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Smoke only</td>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@Smoke&quot;</code></td>
+</tr>
+<tr>
+<td style="text-align:left">All regression</td>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@Regression&quot;</code></td>
+</tr>
+<tr>
+<td style="text-align:left">One flow</td>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@VerificationAgree&quot;</code></td>
+</tr>
+<tr>
+<td style="text-align:left">All district flows</td>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@IsDistrict&quot;</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Verification family</td>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@VerificationAgree or @VerificationDisagree or @EmptyErrorMessage&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Notes</h2>
+<ul>
+<li>Case numbers in Examples are environment-specific and may need updating if data is refreshed.</li>
+<li>Empty Error Message depends on case <strong>00120861</strong> still having at least one empty Verifier Status.</li>
+<li>Verification Agree / Disagree mutate the same Random Sampling Records area on the same case — run order / data state matters.</li>
+<li>Contributor-code scenarios write JSON change reports under <code>reports/</code>.</li>
+</ul>
+
+</body>
+</html>

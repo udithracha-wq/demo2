@@ -631,10 +631,19 @@ export class Auditor1Page extends BasePage {
       nameToken.length >= 3 ? nameToken.slice(0, 3).toLowerCase() : nameToken;
     await combo.fill(searchText);
 
-    // Allow dropdown results to render before clicking the displayed name
+    // Allow dropdown results to render before clicking the displayed name.
+    // Match the listbox option: a bare getByText picks up the same name in the
+    // Case History panel and leaves the lookup open with nothing selected.
     await this.page.waitForTimeout(2_000);
 
-    const dropdownName = this.page.getByText(auditorName, { exact: true }).last();
+    const dropdownName = this.page
+      .getByRole('option', { name: new RegExp(nameToken, 'i') })
+      .or(
+        this.page
+          .getByRole('listbox')
+          .getByText(auditorName, { exact: true })
+      )
+      .first();
     await expect(dropdownName).toBeVisible({ timeout: 15_000 });
     await dropdownName.click();
 
@@ -642,11 +651,219 @@ export class Auditor1Page extends BasePage {
     await expect(save.first()).toBeVisible({ timeout: 30_000 });
     await save.first().click();
 
+    // Verify the value actually persisted — the edit button reappears whether
+    // or not the save took effect, so assert on the field content instead.
     await expect(
-      editBtn
-        .or(this.page.getByRole('link', { name: new RegExp(nameToken, 'i') }))
+      this.page
+        .getByRole('listitem')
+        .filter({ hasText: /Primary Auditor/i })
+        .filter({ hasText: new RegExp(nameToken, 'i') })
         .first()
     ).toBeVisible({ timeout: 60_000 });
+  }
+
+  /**
+   * Value of a Details-tab field, read from the listitem holding its label.
+   *
+   * Some fields render without line breaks ("StatusMatching Claim ReviewEdit
+   * Status"), so the value is isolated by subtracting the field's own button
+   * labels and its label text rather than by splitting lines.
+   */
+  async caseFieldValue(
+    labelPattern: RegExp,
+    timeout = 30_000
+  ): Promise<string> {
+    const field = this.page
+      .getByRole('listitem')
+      .filter({ hasText: labelPattern })
+      .first();
+    await expect(field).toBeVisible({ timeout });
+
+    let value = ((await field.innerText()) ?? '').replace(/\s*\n\s*/g, '\n');
+    const buttons = await field
+      .getByRole('button')
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+
+    for (const button of buttons) {
+      const text = button.trim();
+      if (text) value = value.split(text).join('\n');
+    }
+    value = value.replace(labelPattern, '\n');
+
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && line !== '*' && !/^preview$/i.test(line))
+      .join(' ')
+      .trim();
+  }
+
+  /** Election Year on the case record, e.g. "2025". */
+  async readElectionYear(): Promise<string> {
+    for (const label of [/Election Year/i, /Election/i]) {
+      const raw = await this.caseFieldValue(label, 10_000).catch(() => '');
+      const year = raw.match(/\b(19|20)\d{2}\b/)?.[0];
+      if (year) return year;
+    }
+
+    throw new Error(
+      'No Election Year found on the case Details tab. Fields read:\n' +
+        (await this.detailsFieldDump())
+    );
+  }
+
+  /**
+   * Case Record Type + Status on the open case record. The Examples table says
+   * "Eligibility Review Case" while the record field reads "Eligibility
+   * Review", so the trailing word "Case" is optional.
+   */
+  async expectCaseRecordTypeAndStatus(
+    recordType: string,
+    status: string
+  ): Promise<void> {
+    const field = this.page
+      .getByRole('listitem')
+      .filter({ hasText: /Case Record Type/i })
+      .first();
+    await expect(field).toBeVisible({ timeout: 60_000 });
+
+    const core = Auditor1Page.escape(recordType.trim().replace(/\s+case$/i, ''));
+    await expect(field).toContainText(new RegExp(`${core}(\\s+Case)?`, 'i'), {
+      timeout: 60_000,
+    });
+
+    await this.expectCaseStatus(status);
+  }
+
+  async expectCaseStatus(status: string): Promise<void> {
+    const detailsField = this.page
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: /^Edit Status$/i }) })
+      .or(this.page.getByRole('listitem').filter({ hasText: /^Status\b/i }))
+      .first();
+
+    // Cases that expose no Status field in the details list (Supervisor Review
+    // among them) still show it in the highlights panel, where the label and
+    // the value render as consecutive paragraphs.
+    const highlightsField = this.page
+      .locator("xpath=//p[normalize-space()='Status']/following::p[1]")
+      .first();
+
+    const field = (await detailsField
+      .isVisible({ timeout: 15_000 })
+      .catch(() => false))
+      ? detailsField
+      : highlightsField;
+
+    await expect(field).toBeVisible({ timeout: 60_000 });
+    // Fields can render label and value without a separator, so match the
+    // status allowing hyphens/spacing differences.
+    await expect(field).toContainText(Auditor1Page.labelPattern(status), {
+      timeout: 60_000,
+    });
+  }
+
+  /** Label matcher tolerant of hyphen/space differences, e.g. Pre-Payment. */
+  private static labelPattern(label: string): RegExp {
+    const words = label
+      .trim()
+      .split(/[\s-]+/)
+      .map((word) => Auditor1Page.escape(word));
+    return new RegExp(words.join('[\\s-]*'), 'i');
+  }
+
+  /**
+   * "Assigned to you" — the org exposes this as Case Owner, Assigned To or
+   * Primary Auditor depending on the record type, so accept any of them.
+   */
+  async expectCaseAssignedTo(name: string): Promise<void> {
+    const read: string[] = [];
+
+    for (const label of [/Case Owner/i, /Assigned To/i, /Primary Auditor/i]) {
+      const value = await this.caseFieldValue(label, 8_000).catch(() => '');
+      if (!value) continue;
+      read.push(`${label.source} = "${value}"`);
+      if (new RegExp(Auditor1Page.escape(name), 'i').test(value)) return;
+    }
+
+    throw new Error(
+      `The case is not assigned to "${name}".\n` +
+        `Assignment fields read: ${read.join(' | ') || 'none found'}\n` +
+        `Details fields:\n${await this.detailsFieldDump()}`
+    );
+  }
+
+  /** Election Type is display-only on the Eligibility flow screen. */
+  async expectElectionTypeNotEditable(): Promise<void> {
+    const byName = this.page.locator('select[name*="Election_Type"]').first();
+    if ((await byName.count()) > 0) {
+      if (!(await byName.isDisabled())) {
+        const name = await byName.getAttribute('name');
+        const options = await byName.locator('option').allInnerTexts();
+        const value = await byName.inputValue().catch(() => '');
+
+        throw new Error(
+          'Election Type is editable on the Eligibility flow screen. ' +
+            `<select name="${name}"> is enabled, currently "${value}", and ` +
+            `offers ${JSON.stringify(options.map((o) => o.trim()))}.`
+        );
+      }
+      return;
+    }
+
+    const field = this.page
+      .locator(
+        '.slds-form-element, flowruntime-input-select, flowruntime-screen-field'
+      )
+      .filter({ hasText: /Election Type/i })
+      .last();
+    await expect(field).toBeVisible({ timeout: 60_000 });
+
+    await expect(
+      field.locator(
+        'select:enabled, input:enabled:not([readonly]), textarea:enabled'
+      )
+    ).toHaveCount(0, { timeout: 15_000 });
+  }
+
+  /** Committee Eligibility action back on the case header after review. */
+  async expectCommitteeEligibilityButtonAvailable(): Promise<void> {
+    const button = this.page
+      .getByRole('button', { name: /Committee Eligibility/i })
+      .first();
+    await expect(button).toBeVisible({ timeout: 90_000 });
+    await expect(button).toBeEnabled({ timeout: 30_000 });
+  }
+
+  /** The Eligibility flow screen is gone and the case record is back. */
+  async expectEligibilityFlowClosed(): Promise<void> {
+    await expect(this.page.locator(Auditor1Page.PARTY_SELECT)).toHaveCount(0, {
+      timeout: 60_000,
+    });
+    await expect(this.nextButton().first()).toBeHidden({ timeout: 60_000 });
+    await expect(this.finishButton().first()).toBeHidden({ timeout: 60_000 });
+    await expect(
+      this.page.getByRole('tab', { name: 'Details' }).first()
+    ).toBeVisible({ timeout: 60_000 });
+  }
+
+  /** Labels + values currently on the Details tab, for failure messages. */
+  private async detailsFieldDump(): Promise<string> {
+    const lines = await this.page
+      .getByRole('listitem')
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+
+    return lines
+      .map((line) => line.replace(/\s*\n\s*/g, ' | ').trim())
+      .filter(Boolean)
+      .slice(0, 40)
+      .join('\n');
+  }
+
+  private static escape(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   async expectCaseVisible(caseNumber: string): Promise<void> {

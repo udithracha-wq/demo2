@@ -1,7 +1,19 @@
 import { When, Then } from '@cucumber/cucumber';
 import * as fs from 'fs';
 import { CustomWorld } from './world';
-import { VerificationAgreePage } from '../../pages/VerificationAgreePage';
+import {
+  VerificationAgreePage,
+  type VerifierStatusValue,
+} from '../../pages/VerificationAgreePage';
+
+function parseVerifierStatus(value: string): VerifierStatusValue {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'agree') return 'Agree';
+  if (normalized === 'disagree') return 'Disagree';
+  throw new Error(
+    `Unsupported Verifier Status "${value}". Use Agree or Disagree.`
+  );
+}
 
 When('I open Random Sampling Records', async function (this: CustomWorld) {
   const page = new VerificationAgreePage(this.page!);
@@ -9,16 +21,19 @@ When('I open Random Sampling Records', async function (this: CustomWorld) {
 });
 
 When(
-  'I set empty Verifier Status values to Agree on all pages',
-  async function (this: CustomWorld) {
+  'I set empty Verifier Status values to {word} on all pages',
+  async function (this: CustomWorld, status: string) {
+    const markedValue = parseVerifierStatus(status);
     const page = new VerificationAgreePage(this.page!);
     const transactionNumbers =
-      await page.setEmptyVerifierStatusToAgreeOnAllPages();
+      await page.setEmptyVerifierStatusOnAllPages(markedValue);
     this.testData.verifierUpdatedCount = String(transactionNumbers.length);
     this.testData.verifierTransactionNumbers = transactionNumbers.join(',');
+    this.testData.verifierMarkedValue = markedValue;
     this.testData.verifierReportPath = page.reportMarkedTransactions(
       this.testData.caseNumber || '',
-      transactionNumbers
+      transactionNumbers,
+      markedValue
     );
   }
 );
@@ -39,8 +54,9 @@ Then(
 );
 
 Then(
-  'I should report all Verifier Status transaction numbers marked Agree',
-  async function (this: CustomWorld) {
+  'I should report all Verifier Status transaction numbers marked {word}',
+  async function (this: CustomWorld, status: string) {
+    const markedValue = parseVerifierStatus(status);
     const raw = this.testData.verifierTransactionNumbers || '';
     const transactionNumbers = raw
       .split(',')
@@ -49,21 +65,24 @@ Then(
 
     if (transactionNumbers.length === 0) {
       console.log(
-        'No transaction numbers were marked Agree (no empty Verifier Status cells).'
+        `No transaction numbers were marked ${markedValue} (no empty Verifier Status cells).`
       );
       return;
     }
 
     const reportPath =
       this.testData.verifierReportPath ||
-      'reports/verification-agree-marked.json';
+      `reports/verification-${markedValue.toLowerCase()}-marked.json`;
 
     if (!fs.existsSync(reportPath)) {
-      throw new Error(`Verifier Status Agree report missing: ${reportPath}`);
+      throw new Error(
+        `Verifier Status ${markedValue} report missing: ${reportPath}`
+      );
     }
 
     const report = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as {
       caseNumber: string;
+      markedValue: string;
       markedCount: number;
       transactionNumbers: string[];
     };
@@ -75,8 +94,17 @@ Then(
       );
     }
 
+    if (report.markedValue !== markedValue) {
+      throw new Error(
+        `Report markedValue mismatch: file has ${report.markedValue}, ` +
+          `expected ${markedValue}`
+      );
+    }
+
     console.log('');
-    console.log('Then: Verifier Status transaction numbers marked Agree:');
+    console.log(
+      `Then: Verifier Status transaction numbers marked ${markedValue}:`
+    );
     for (const id of report.transactionNumbers) {
       console.log(`  - ${id}`);
     }

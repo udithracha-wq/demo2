@@ -28,6 +28,11 @@ export function caseRecordUrl(caseId: string): string {
   return `${orgBaseUrl()}/lightning/r/Case/${caseId}/view`;
 }
 
+/** "View All" Cases related list on an Account (committee) record. */
+export function accountCasesRelatedListUrl(accountId: string): string {
+  return `${orgBaseUrl()}/lightning/r/Account/${accountId}/related/Cases/view`;
+}
+
 /**
  * CyberArk Idaptive login gate for NYselections Salesforce.
  *

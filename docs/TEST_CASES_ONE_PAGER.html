@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>NYselections Test Cases One-Pager</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; max-width: 900px; margin: 24px; color: #222; }
+h1 { font-size: 20pt; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+h2 { font-size: 14pt; margin-top: 22px; }
+h3 { font-size: 12pt; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; }
+code, pre { font-family: Consolas, monospace; font-size: 10pt; }
+pre { background: #f7f7f7; padding: 10px; border: 1px solid #ddd; overflow-x: auto; }
+ul { margin: 8px 0; }
+hr { border: none; border-top: 1px solid #ccc; margin: 20px 0; }
+</style>
+</head>
+<body>
+<h1>NYselections Test Cases - One-Pager</h1>
+<p>Quick reference of BDD automation completed to date.</p>
+<h2>Stack</h2>
+<p>Playwright ++ Cucumber (BDD-only): Feature → Steps → Page Objects<br>
+App: NYselections Lightning (Salesforce) · Reports: Allure ++ JSON side reports</p>
+<h2>Run</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Command</th>
+<th style="text-align:left">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>npm run bdd</code></td>
+<td style="text-align:left">All scenarios</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run bdd:tags &quot;@Tag&quot;</code></td>
+<td style="text-align:left">By tag</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run bdd:headed</code></td>
+<td style="text-align:left">Visible browser</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>npm run report</code></td>
+<td style="text-align:left">Allure report</td>
+</tr>
+</tbody>
+</table>
+<h2>Inventory (10 features)</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Feature</th>
+<th style="text-align:left">Tag</th>
+<th style="text-align:left">Case</th>
+<th style="text-align:left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Smoke</td>
+<td style="text-align:left"><code>@Smoke</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">Framework launch check (example.com)</td>
+</tr>
+<tr>
+<td style="text-align:left">Auditor1</td>
+<td style="text-align:left"><code>@Auditor1</code></td>
+<td style="text-align:left">00120464</td>
+<td style="text-align:left">Login, case, party, Primary Auditor, eligibility Yes</td>
+</tr>
+<tr>
+<td style="text-align:left">Duplicate Transaction</td>
+<td style="text-align:left"><code>@DuplicateTransaction</code></td>
+<td style="text-align:left">00120877</td>
+<td style="text-align:left">Clear all flagged duplicates; assert none remain</td>
+</tr>
+<tr>
+<td style="text-align:left">Repeat Contributor Code</td>
+<td style="text-align:left"><code>@RepeatContributorCode</code></td>
+<td style="text-align:left">00120859</td>
+<td style="text-align:left">Align codes for same contributor name</td>
+</tr>
+<tr>
+<td style="text-align:left">Clear Shared Contributor Code</td>
+<td style="text-align:left"><code>@ClearSharedContributorCode</code></td>
+<td style="text-align:left">00120859</td>
+<td style="text-align:left">Clear codes shared across different names</td>
+</tr>
+<tr>
+<td style="text-align:left">Is District (No)</td>
+<td style="text-align:left"><code>@IsDistrict</code></td>
+<td style="text-align:left">00120857</td>
+<td style="text-align:left">Empty In District Confirmed → No; save</td>
+</tr>
+<tr>
+<td style="text-align:left">Is District Yes</td>
+<td style="text-align:left"><code>@IsDistrictYes</code></td>
+<td style="text-align:left">00120877</td>
+<td style="text-align:left">Empty In District Confirmed → Yes; save</td>
+</tr>
+<tr>
+<td style="text-align:left">Verification Agree</td>
+<td style="text-align:left"><code>@VerificationAgree</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Empty Verifier Status → Agree; save</td>
+</tr>
+<tr>
+<td style="text-align:left">Verification Disagree</td>
+<td style="text-align:left"><code>@VerificationDisagree</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Empty Verifier Status → Disagree; save</td>
+</tr>
+<tr>
+<td style="text-align:left">Empty Error Message</td>
+<td style="text-align:left"><code>@EmptyErrorMessage</code></td>
+<td style="text-align:left">00120861</td>
+<td style="text-align:left">Accept/Reject blocked when Verifier Status empty</td>
+</tr>
+</tbody>
+</table>
+<p>Shared tags on NYselections flows: <code>@Regression</code> <code>@NYselections</code> <code>@End_to_End</code></p>
+<h2>Key files</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Kind</th>
+<th style="text-align:left">Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Features</td>
+<td style="text-align:left"><code>features/*.feature</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Steps</td>
+<td style="text-align:left"><code>features/step-definitions/*.steps.ts</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Pages</td>
+<td style="text-align:left"><code>pages/*.ts</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Full write-up</td>
+<td style="text-align:left"><code>docs/TEST_CASES_SUMMARY.md</code></td>
+</tr>
+</tbody>
+</table>
+<h2>Watch-outs</h2>
+<ul>
+<li>Case numbers are data-dependent; refresh Examples if env data changes</li>
+<li>Empty Error Message needs at least one empty Verifier Status on 00120861</li>
+<li>Agree / Disagree / Empty Error share Random Sampling Records on the same case</li>
+<li>Contributor-code flows write JSON under <code>reports/</code></li>
+</ul>
+
+</body>
+</html>
