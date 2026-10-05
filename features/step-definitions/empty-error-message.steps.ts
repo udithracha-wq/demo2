@@ -67,6 +67,16 @@ When(
 );
 
 Then(
+  'I should see an Approval History success message',
+  async function (this: CustomWorld) {
+    const action = parseApprovalAction(this.testData.approvalAction || '');
+    const page = new EmptyErrorMessagePage(this.page!);
+    this.testData.approvalSuccessMessage =
+      await page.expectApprovalSuccessMessage(action);
+  }
+);
+
+Then(
   'I should see the incomplete review error message',
   async function (this: CustomWorld) {
     const page = new EmptyErrorMessagePage(this.page!);

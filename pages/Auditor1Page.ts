@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { BasePage } from './BasePage';
 import {
   caseListUrl,
@@ -736,55 +736,175 @@ export class Auditor1Page extends BasePage {
     await this.expectCaseStatus(status);
   }
 
-  async expectCaseStatus(status: string): Promise<void> {
-    const detailsField = this.page
+  /**
+   * Read the case Status from Details (Edit Status) or the highlights panel.
+   * Do not match Approval History "Status" (e.g. Rejected) — that is a
+   * different field and returns values like ": Rejected".
+   */
+  async readCaseStatus(): Promise<string> {
+    const editStatusField = this.page
       .getByRole('listitem')
       .filter({ has: this.page.getByRole('button', { name: /^Edit Status$/i }) })
-      .or(this.page.getByRole('listitem').filter({ hasText: /^Status\b/i }))
       .first();
 
-    // Cases that expose no Status field in the details list (Supervisor Review
-    // among them) still show it in the highlights panel, where the label and
-    // the value render as consecutive paragraphs.
+    if (await editStatusField.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      const value = await this.listitemFieldValue(editStatusField, /^Status\b/i);
+      if (value) return value;
+    }
+
+    // Highlights panel only — never the Approval History related list.
+    // Lightning sometimes keeps this field in the DOM but hidden after reload.
     const highlightsField = this.page
-      .locator("xpath=//p[normalize-space()='Status']/following::p[1]")
+      .locator('records-highlights2, .slds-page-header')
+      .locator("xpath=.//p[normalize-space()='Status']/following::p[1]")
       .first();
 
-    const field = (await detailsField
-      .isVisible({ timeout: 15_000 })
-      .catch(() => false))
-      ? detailsField
-      : highlightsField;
-
-    await expect(field).toBeVisible({ timeout: 60_000 });
-    // Fields can render label and value without a separator, so match the
-    // status allowing hyphens/spacing differences.
-    await expect(field).toContainText(Auditor1Page.labelPattern(status), {
-      timeout: 60_000,
-    });
+    await expect(highlightsField).toBeAttached({ timeout: 60_000 });
+    const raw = (
+      (await highlightsField.innerText().catch(() => '')) ||
+      (await highlightsField.textContent().catch(() => '')) ||
+      ''
+    ).trim();
+    if (!raw) {
+      throw new Error('Case Status field is present but empty.');
+    }
+    return raw.replace(/\s+/g, ' ');
   }
 
-  /** Label matcher tolerant of hyphen/space differences, e.g. Pre-Payment. */
+  /** Strip label + button chrome from a known Details listitem. */
+  private async listitemFieldValue(
+    field: Locator,
+    labelPattern: RegExp
+  ): Promise<string> {
+    let value = ((await field.innerText()) ?? '').replace(/\s*\n\s*/g, '\n');
+    const buttons = await field
+      .getByRole('button')
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+
+    for (const button of buttons) {
+      const text = button.trim();
+      if (text) value = value.split(text).join('\n');
+    }
+    value = value.replace(labelPattern, '\n');
+
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && line !== '*' && !/^preview$/i.test(line))
+      .join(' ')
+      .trim();
+  }
+
+  async expectCaseStatus(status: string): Promise<void> {
+    const expected = status.trim();
+    let actual = await this.readCaseStatus();
+
+    if (Auditor1Page.labelPattern(expected).test(actual)) {
+      console.log(`Case status is "${actual}" (expected "${expected}")`);
+      return;
+    }
+
+    console.log(
+      `Case status initially "${actual}"; waiting for "${expected}"…`
+    );
+
+    // After approval actions Lightning may keep a stale highlights value —
+    // poll with a soft reload until the expected status appears.
+    try {
+      await expect
+        .poll(
+          async () => {
+            await this.page
+              .reload({ waitUntil: 'domcontentloaded' })
+              .catch(() => undefined);
+            actual = await this.readCaseStatus().catch(() => actual);
+            console.log(`  polled case status: "${actual}"`);
+            return Auditor1Page.labelPattern(expected).test(actual);
+          },
+          { timeout: 90_000, intervals: [2_000, 3_000, 5_000] }
+        )
+        .toBeTruthy();
+    } catch {
+      throw new Error(
+        `Expected case status "${expected}", but it is "${actual}".`
+      );
+    }
+
+    console.log(`Case status is "${actual}" (expected "${expected}")`);
+  }
+
+  /** Label matcher tolerant of hyphen/slash/space differences. */
   private static labelPattern(label: string): RegExp {
     const words = label
       .trim()
-      .split(/[\s-]+/)
+      .split(/[\s\-/]+/)
+      .filter(Boolean)
       .map((word) => Auditor1Page.escape(word));
-    return new RegExp(words.join('[\\s-]*'), 'i');
+    return new RegExp(words.join('[\\s\\-/]*'), 'i');
   }
 
   /**
-   * "Assigned to you" — the org exposes this as Case Owner, Assigned To or
-   * Primary Auditor depending on the record type, so accept any of them.
+   * Case Owner from the Details listitem (or highlights). Never use Approval
+   * History "Assigned To" — that is a different field.
+   */
+  async readCaseOwner(): Promise<string> {
+    // Details tab: "Case Owner | PCFB Admin Queue" listitem.
+    // Do not anchor the label regex — hasText matches the whole listitem text.
+    const detailsOwner = await this.caseFieldValue(/Case Owner/i, 15_000).catch(
+      () => ''
+    );
+    if (detailsOwner && !/Approval|Status:|Comments:/i.test(detailsOwner)) {
+      return detailsOwner.replace(/^Case\s*Owner\s*/i, '').trim() || detailsOwner;
+    }
+
+    const highlightsOwner = this.page
+      .locator('records-highlights2, .slds-page-header')
+      .locator(
+        "xpath=.//p[normalize-space()='Owner' or normalize-space()='Case Owner']/following::p[1]"
+      )
+      .first();
+
+    if (
+      await highlightsOwner.isVisible({ timeout: 8_000 }).catch(() => false)
+    ) {
+      const value = ((await highlightsOwner.innerText()) ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (value) return value;
+    }
+
+    const ownerField = await this.caseFieldValue(/^Owner$/i, 5_000).catch(
+      () => ''
+    );
+    if (ownerField && !/Approval|Status:|Comments:/i.test(ownerField)) {
+      return ownerField;
+    }
+
+    return '';
+  }
+
+  /**
+   * "Assigned to you" — Case Owner (preferred) or Primary Auditor.
+   * Do not match Approval History "Assigned To".
    */
   async expectCaseAssignedTo(name: string): Promise<void> {
     const read: string[] = [];
+    const expected = new RegExp(Auditor1Page.escape(name), 'i');
 
-    for (const label of [/Case Owner/i, /Assigned To/i, /Primary Auditor/i]) {
-      const value = await this.caseFieldValue(label, 8_000).catch(() => '');
-      if (!value) continue;
-      read.push(`${label.source} = "${value}"`);
-      if (new RegExp(Auditor1Page.escape(name), 'i').test(value)) return;
+    const owner = await this.readCaseOwner();
+    if (owner) {
+      read.push(`Case Owner = "${owner}"`);
+      if (expected.test(owner)) return;
+    }
+
+    const primaryAuditor = await this.caseFieldValue(
+      /Primary Auditor/i,
+      8_000
+    ).catch(() => '');
+    if (primaryAuditor) {
+      read.push(`Primary Auditor = "${primaryAuditor}"`);
+      if (expected.test(primaryAuditor)) return;
     }
 
     throw new Error(

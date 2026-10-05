@@ -270,10 +270,10 @@ export class RepeatContributorCodePage extends BasePage {
     const mismatches: string[] = [];
     const byCode = this.groupByCode(rows);
     for (const [code, group] of byCode) {
-      const names = [
-        ...new Set(group.map((r) => r.name.trim()).filter(Boolean)),
-      ];
-      if (names.length < 2) continue;
+      // Case-insensitive distinct names (Zhang, YanFeng === Zhang, Yanfeng)
+      const byName = this.groupByName(group);
+      if (byName.size < 2) continue;
+      const names = [...byName.values()].map((g) => g[0]?.name ?? '');
       mismatches.push(
         `Code "${code}" is shared by ${names.length} name(s): ${names.join('; ')}`
       );
@@ -305,9 +305,9 @@ export class RepeatContributorCodePage extends BasePage {
   }
 
   /**
-   * For each non-empty code used by 2+ distinct names, keep the unique
-   * majority name group and clear the code on every other name's rows.
-   * Skips codes with a tie for majority (no safe single owner).
+   * For each non-empty code used by 2+ distinct names (case-insensitive):
+   * keep the majority name group; on a tie, keep the alphabetically first
+   * name key and clear the code on every other name's rows.
    */
   private buildClearSharedCodeFixes(rows: ReportRow[]): CodeFix[] {
     const fixes: CodeFix[] = [];
@@ -317,19 +317,18 @@ export class RepeatContributorCodePage extends BasePage {
       const byName = this.groupByName(codeRows);
       if (byName.size < 2) continue;
 
-      const majority = this.uniqueMajorityNameKey(byName);
-      if (!majority) {
+      const { keeper, tied } = this.keeperNameKey(byName);
+      if (tied) {
         const summary = [...byName.entries()]
           .map(([key, list]) => `${list[0]?.name ?? key}×${list.length}`)
           .join(', ');
-        console.warn(
-          `Code "${code}" has no unique majority name group (${summary}); skipping.`
+        console.log(
+          `Code "${code}" tied (${summary}); keeping "${byName.get(keeper)?.[0]?.name ?? keeper}" (alphabetical), clearing others.`
         );
-        continue;
       }
 
       for (const [nameKey, nameRows] of byName) {
-        if (nameKey === majority) continue;
+        if (nameKey === keeper) continue;
         for (const row of nameRows) {
           fixes.push({
             name: row.name,
@@ -344,25 +343,28 @@ export class RepeatContributorCodePage extends BasePage {
     return fixes;
   }
 
-  /** Name key with strictly more rows than every other name, or null on ties. */
-  private uniqueMajorityNameKey(
-    byName: Map<string, ReportRow[]>
-  ): string | null {
-    let bestKey: string | null = null;
+  /**
+   * Prefer the unique majority name; on a tie for most rows, keep the
+   * alphabetically first name key among the tied contenders.
+   */
+  private keeperNameKey(byName: Map<string, ReportRow[]>): {
+    keeper: string;
+    tied: boolean;
+  } {
     let bestCount = 0;
-    let tied = false;
-
-    for (const [key, list] of byName) {
-      if (list.length > bestCount) {
-        bestKey = key;
-        bestCount = list.length;
-        tied = false;
-      } else if (list.length === bestCount) {
-        tied = true;
-      }
+    for (const list of byName.values()) {
+      if (list.length > bestCount) bestCount = list.length;
     }
 
-    return tied || !bestKey ? null : bestKey;
+    const contenders = [...byName.entries()]
+      .filter(([, list]) => list.length === bestCount)
+      .map(([key]) => key)
+      .sort((a, b) => a.localeCompare(b));
+
+    return {
+      keeper: contenders[0]!,
+      tied: contenders.length > 1,
+    };
   }
 
   /**

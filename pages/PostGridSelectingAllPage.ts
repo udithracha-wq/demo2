@@ -164,9 +164,14 @@ export class PostGridSelectingAllPage extends BasePage {
   }
 
   /**
-   * Ensure every visible row checkbox is checked via the header Select All.
+   * Ensure every visible row is selected so Confirm and Next becomes enabled.
+   * Trust the Confirm button state over faux-checkbox heuristics — after a
+   * batch processes, rows reload unchecked while our old detection can lie.
    */
   async ensureAllCheckboxesChecked(): Promise<void> {
+    if (await this.isAllTransactionsCompleted()) return;
+
+    const confirm = this.confirmAndNextButton();
     await expect(this.selectAllFaux()).toBeVisible({ timeout: 60_000 });
     await expect
       .poll(async () => this.rowFauxCheckboxes().count(), {
@@ -175,98 +180,56 @@ export class PostGridSelectingAllPage extends BasePage {
       })
       .toBeGreaterThan(1);
 
-    if (await this.areAllRowCheckboxesChecked()) {
-      console.log('All PostGrid row checkboxes already checked');
+    if (await confirm.isEnabled().catch(() => false)) {
+      console.log('Confirm and Next already enabled — selection ready');
       return;
     }
 
-    console.log('Selecting all PostGrid rows via header checkbox…');
-    await this.selectAllFaux().click({ force: true });
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (await this.isAllTransactionsCompleted()) return;
 
-    const selected = await expect
-      .poll(async () => this.areAllRowCheckboxesChecked(), {
-        timeout: 15_000,
-        intervals: [250, 500, 1_000],
-      })
-      .toBe(true)
-      .then(() => true)
-      .catch(() => false);
-
-    if (!selected) {
-      // Second click only if still not selected (codegen clicked twice, but
-      // a second click on an already-checked header would deselect).
-      console.log('Rows still unchecked — clicking Select All once more…');
-      await this.selectAllFaux().click({ force: true });
-      await expect
-        .poll(async () => this.areAllRowCheckboxesChecked(), {
-          timeout: 30_000,
-          message: 'Expected every PostGrid row checkbox to be checked',
-        })
-        .toBe(true);
-    }
-
-    console.log(
-      `PostGrid selection confirmed for ${
-        (await this.rowFauxCheckboxes().count()) - 1
-      } row(s).`
-    );
-  }
-
-  private async areAllRowCheckboxesChecked(): Promise<boolean> {
-    const boxes = this.rowFauxCheckboxes();
-    const count = await boxes.count();
-    if (count <= 1) return false;
-
-    for (let i = 1; i < count; i++) {
-      if (!(await this.isFauxChecked(boxes.nth(i)))) return false;
-    }
-    return true;
-  }
-
-  private async isFauxChecked(faux: Locator): Promise<boolean> {
-    const input = faux
-      .locator(
-        'xpath=ancestor::label[1]//input[@type="checkbox"] | ' +
-          'ancestor::*[contains(@class,"slds-checkbox")][1]//input[@type="checkbox"]'
-      )
-      .first();
-
-    if (await input.count()) {
-      if (await input.isChecked().catch(() => false)) return true;
-      if ((await input.getAttribute('aria-checked')) === 'true') return true;
-    }
-
-    const row = faux.locator(
-      'xpath=ancestor::tr[1] | ancestor::*[@role="row"][1]'
-    );
-    if ((await row.getAttribute('aria-selected').catch(() => null)) === 'true') {
-      return true;
-    }
-
-    // Visual cue used by this report: checked rows show a blue check glyph.
-    const checkedIcon = faux
-      .locator(
-        'xpath=ancestor::td[1]//*[contains(@class,"slds-icon") or self::svg or self::img]'
-      )
-      .or(
-        faux.locator(
-          'xpath=following-sibling::*[contains(@class,"checked") or contains(@class,"selected")]'
-        )
+      console.log(
+        `Selecting all PostGrid rows via header checkbox (attempt ${attempt})…`
       );
-    if (await checkedIcon.first().isVisible().catch(() => false)) return true;
+      await this.selectAllFaux().click({ force: true });
 
-    const className = (await faux.getAttribute('class').catch(() => '')) || '';
-    return /is-checked|slds-is-selected|checked/i.test(className);
+      let outcome: 'reviewed' | 'ready' | '' = '';
+      const ok = await expect
+        .poll(
+          async () => {
+            if (await this.isAllTransactionsCompleted()) {
+              outcome = 'reviewed';
+              return true;
+            }
+            if (await confirm.isEnabled().catch(() => false)) {
+              outcome = 'ready';
+              return true;
+            }
+            return false;
+          },
+          { timeout: 15_000, intervals: [250, 500, 1_000] }
+        )
+        .toBe(true)
+        .then(() => true)
+        .catch(() => false);
+
+      if (ok && outcome === 'reviewed') return;
+      if (ok && outcome === 'ready') {
+        console.log('Confirm and Next enabled after Select All');
+        return;
+      }
+    }
+
+    throw new Error(
+      'Could not enable Confirm and Next after selecting all PostGrid rows.'
+    );
   }
 
   async clickConfirmAndNext(): Promise<string> {
     const btn = this.confirmAndNextButton();
     await expect(btn).toBeVisible({ timeout: 60_000 });
 
-    // After the last successful batch the button can stay visible but disabled
-    // while the green "All Transactions are Reviewed" banner appears.
-    const enabled = await btn.isEnabled().catch(() => false);
-    if (!enabled) {
+    if (!(await btn.isEnabled().catch(() => false))) {
       if (await this.isAllTransactionsCompleted()) {
         return (
           (await this.completedMessage().innerText().catch(() => ''))
@@ -290,7 +253,7 @@ export class PostGridSelectingAllPage extends BasePage {
    */
   private async captureConfirmResult(timeoutMs: number): Promise<string> {
     const successish =
-      /success|confirm|saved|updated|submitted|complete|record|reviewed/i;
+      /success|confirm|saved|updated|submitted|complete|record|reviewed|processed/i;
     const errorish = /error|exception|cannot_|failed|unable/i;
 
     let message = '';
@@ -342,6 +305,49 @@ export class PostGridSelectingAllPage extends BasePage {
   }
 
   /**
+   * After a batch succeeds, wait for the next grid (Confirm disabled again with
+   * rows) or the green "All Transactions are Reviewed" banner.
+   */
+  private async waitForNextBatchOrReviewed(): Promise<'reviewed' | 'batch'> {
+    let state: 'reviewed' | 'batch' | '' = '';
+    await expect
+      .poll(
+        async () => {
+          if (await this.isAllTransactionsCompleted()) {
+            state = 'reviewed';
+            return true;
+          }
+
+          const confirm = this.confirmAndNextButton();
+          const visible = await confirm.isVisible().catch(() => false);
+          if (!visible) return false;
+
+          const enabled = await confirm.isEnabled().catch(() => false);
+          const rowCount = await this.rowFauxCheckboxes().count();
+          // Next batch: Confirm present (often disabled until Select All) and rows shown.
+          if (rowCount > 1) {
+            state = 'batch';
+            return true;
+          }
+          // Sometimes Confirm stays enabled if residual selection remains.
+          if (enabled) {
+            state = 'batch';
+            return true;
+          }
+          return false;
+        },
+        {
+          timeout: 120_000,
+          message:
+            'Expected the next PostGrid batch or "All Transactions are Reviewed".',
+        }
+      )
+      .toBe(true);
+
+    return state === 'reviewed' ? 'reviewed' : 'batch';
+  }
+
+  /**
    * Select-all → Confirm and Next → assert success, repeating until the
    * report shows that all transactions are reviewed.
    */
@@ -366,31 +372,28 @@ export class PostGridSelectingAllPage extends BasePage {
         .catch(() => false);
 
       if (!confirmVisible) {
-        if (await this.isAllTransactionsCompleted()) {
-          return { batches, lastMessage };
-        }
-        await expect(confirm).toBeVisible({ timeout: 60_000 });
-      }
-
-      // Disabled Confirm after prior batches usually means the review finished.
-      const confirmEnabled = await confirm.isEnabled().catch(() => false);
-      if (!confirmEnabled) {
-        await expect
-          .poll(async () => this.isAllTransactionsCompleted(), {
-            timeout: 30_000,
-            message:
-              'Confirm and Next stayed disabled — expected "All Transactions are Reviewed".',
-          })
-          .toBe(true);
-        return { batches, lastMessage };
+        const next = await this.waitForNextBatchOrReviewed();
+        if (next === 'reviewed') return { batches, lastMessage };
       }
 
       await this.ensureAllCheckboxesChecked();
+      if (await this.isAllTransactionsCompleted()) {
+        return { batches, lastMessage };
+      }
+
       lastMessage = await this.clickConfirmAndNext();
       batches += 1;
       console.log(`PostGrid batch ${batches} confirmed.`);
 
       if (PostGridSelectingAllPage.COMPLETED_MESSAGE.test(lastMessage)) {
+        return { batches, lastMessage };
+      }
+
+      const next = await this.waitForNextBatchOrReviewed();
+      if (next === 'reviewed') {
+        console.log(
+          `All PostGrid transactions reviewed after ${batches} Confirm and Next batch(es).`
+        );
         return { batches, lastMessage };
       }
     }

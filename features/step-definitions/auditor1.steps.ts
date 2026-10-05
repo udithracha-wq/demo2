@@ -267,3 +267,11 @@ Then('the case should be assigned to {string}', async function (
   const auditor1Page = new Auditor1Page(this.page!);
   await auditor1Page.expectCaseAssignedTo(name);
 });
+
+Then('the case owner should be {string}', async function (
+  this: CustomWorld,
+  ownerName: string
+) {
+  const auditor1Page = new Auditor1Page(this.page!);
+  await auditor1Page.expectCaseAssignedTo(ownerName);
+});

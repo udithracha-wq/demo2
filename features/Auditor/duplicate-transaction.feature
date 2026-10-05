@@ -17,4 +17,4 @@ Feature: Duplicate Transaction
 
     Examples:
       | CaseNumber |
-      | 00120877   |
+      | 00120858   |

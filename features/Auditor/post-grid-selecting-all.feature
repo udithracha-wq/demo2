@@ -13,4 +13,4 @@ Feature: PostGrid Selecting All
 
     Examples:
       | CaseNumber |
-      | 00121012   |
+      | 00120858   |

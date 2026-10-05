@@ -134,18 +134,23 @@ export class DuplicateTransactionPage extends BasePage {
 
   /**
    * Keep walking every report page until a full Refresh + scan finds zero
-   * Flagged icons. Never stop just because digit buttons 1–5 are the only
-   * ones visible. Finish is required so Salesforce persists the removal.
+   * Flagged icons. Click each flagged T- link as soon as it is found —
+   * collect-then-reopen misses virtualized rows. Finish is required so
+   * Salesforce persists the removal.
    */
   async clearAllFlaggedTransactions(): Promise<string[]> {
     await this.waitForReportRows();
     const processed: string[] = [];
     const attemptsById = new Map<string, number>();
+    let lastSeen: string[] = [];
 
     for (let attempt = 0; attempt < 80; attempt++) {
       await this.returnToRepeatContributorReport();
       await this.refreshReportIfPossible();
-      const leftover = await this.collectAllFlaggedIds();
+      const { leftover, openedId } = await this.walkAndClickFirstFlagged(
+        attemptsById
+      );
+      lastSeen = leftover;
       console.log(
         `Full-page scan ${attempt + 1}: ${leftover.length} flagged ` +
           `(${leftover.join(', ') || 'none'})`
@@ -159,22 +164,20 @@ export class DuplicateTransactionPage extends BasePage {
         break;
       }
 
-      const transactionId = leftover.find((id) => (attemptsById.get(id) ?? 0) < 3);
-      if (!transactionId) {
-        throw new Error(
-          'Flagged rows remain after retries: ' + leftover.join(', ')
-        );
-      }
-
-      attemptsById.set(transactionId, (attemptsById.get(transactionId) ?? 0) + 1);
-      const opened = await this.openFlaggedIdFromReport(transactionId);
-      if (!opened) {
-        console.log(`Could not open ${transactionId}; will retry on next scan.`);
-        await this.closeTransactionWorkspace(transactionId).catch(() => undefined);
+      if (!openedId) {
+        const retryable = leftover.find((id) => (attemptsById.get(id) ?? 0) < 3);
+        if (!retryable) {
+          throw new Error(
+            'Flagged rows remain after retries: ' + leftover.join(', ')
+          );
+        }
+        console.log(`Could not open ${retryable}; will retry on next scan.`);
+        await this.closeTransactionWorkspace(retryable).catch(() => undefined);
         await this.returnToRepeatContributorReport();
         continue;
       }
 
+      const transactionId = openedId;
       console.log(`Clearing flags on ${transactionId}...`);
       await this.searchDuplicateTransactions();
       await this.removeAllDupeFlags();
@@ -200,6 +203,13 @@ export class DuplicateTransactionPage extends BasePage {
     );
 
     if (processed.length === 0) {
+      if (lastSeen.length > 0) {
+        throw new Error(
+          'Could not open flagged transactions after retries: ' +
+            lastSeen.join(', ') +
+            '. Search Duplicate Transactions never appeared.'
+        );
+      }
       throw new Error(
         'No flagged transactions found after scanning all report pages ' +
           '(all Repeat Contributor Codes). Expected img[alt="Flagged"] rows. ' +
@@ -246,7 +256,7 @@ export class DuplicateTransactionPage extends BasePage {
     await this.goToFirstReportPage();
 
     for (let page = 0; page < DuplicateTransactionPage.MAX_REPORT_PAGES; page++) {
-      await this.waitForReportRowsQuick().catch(() => undefined);
+      await this.waitForFlagIconsOrSettle();
       const rows = this.flaggedRows();
       const count = await rows.count();
       for (let r = 0; r < count; r++) {
@@ -266,24 +276,44 @@ export class DuplicateTransactionPage extends BasePage {
     return found;
   }
 
-  private async openFlaggedIdFromReport(
-    transactionId: string
-  ): Promise<boolean> {
+  /**
+   * One forward walk: record flagged T- ids and click the first one that
+   * still has retries left. Avoids a second collect-then-reopen walk.
+   */
+  private async walkAndClickFirstFlagged(
+    attemptsById: Map<string, number>
+  ): Promise<{ leftover: string[]; openedId: string | null }> {
+    const leftover: string[] = [];
     await this.goToFirstReportPage();
 
     for (let page = 0; page < DuplicateTransactionPage.MAX_REPORT_PAGES; page++) {
-      await this.waitForReportRowsQuick().catch(() => undefined);
-      const txnLink = this.flaggedRows()
-        .getByRole('link', { name: transactionId, exact: true })
-        .first();
-      if (await txnLink.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await txnLink.click({ force: true });
-        return this.waitForSearchDuplicateButton(transactionId);
+      await this.waitForFlagIconsOrSettle();
+      const rows = this.flaggedRows();
+      const count = await rows.count();
+      for (let r = 0; r < count; r++) {
+        const rowLink = rows
+          .nth(r)
+          .getByRole('link', { name: DuplicateTransactionPage.TXN_LINK })
+          .first();
+        const visible = await rowLink.isVisible({ timeout: 800 }).catch(() => false);
+        if (!visible) continue;
+        const id = (await rowLink.innerText()).trim();
+        if (!id || leftover.includes(id)) continue;
+        leftover.push(id);
+
+        if ((attemptsById.get(id) ?? 0) >= 3) continue;
+        attemptsById.set(id, (attemptsById.get(id) ?? 0) + 1);
+        console.log(`Clicking ${id} from the report grid...`);
+        await rowLink.click({ timeout: 10_000 }).catch(async () => {
+          await rowLink.click({ force: true });
+        });
+        const opened = await this.waitForSearchDuplicateButton(id);
+        return { leftover, openedId: opened ? id : null };
       }
       if (!(await this.advanceReportPage())) break;
     }
 
-    return false;
+    return { leftover, openedId: null };
   }
 
   /**
@@ -293,28 +323,37 @@ export class DuplicateTransactionPage extends BasePage {
   private async waitForSearchDuplicateButton(
     transactionId: string
   ): Promise<boolean> {
-    const searchBtn = this.page.getByRole('button', {
-      name: 'Search Duplicate Transactions',
-    });
+    const searchBtn = this.searchDuplicateButton();
     const txnTab = this.page.getByRole('tab', {
-      name: new RegExp(`${transactionId}`),
+      name: new RegExp(transactionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
     });
 
-    if (await searchBtn.isVisible({ timeout: 20_000 }).catch(() => false)) {
+    if (await searchBtn.isVisible({ timeout: 15_000 }).catch(() => false)) {
       return true;
     }
 
-    if (await txnTab.first().isVisible({ timeout: 25_000 }).catch(() => false)) {
+    if (await txnTab.first().isVisible({ timeout: 20_000 }).catch(() => false)) {
       await txnTab.first().click().catch(() => undefined);
-      if (await searchBtn.isVisible({ timeout: 20_000 }).catch(() => false)) {
+      if (await searchBtn.isVisible({ timeout: 15_000 }).catch(() => false)) {
         return true;
       }
       console.log(
         `Opened ${transactionId} workspace but Search Duplicate Transactions did not appear.`
       );
+    } else {
+      console.log(
+        `Click on ${transactionId} did not open a transaction workspace tab.`
+      );
     }
 
     return false;
+  }
+
+  private searchDuplicateButton(): Locator {
+    return this.page
+      .getByRole('button', { name: /Search Duplicate Transactions/i })
+      .or(this.page.getByText(/Search Duplicate Transactions/i))
+      .first();
   }
 
   private async reportHasTransactionLinks(): Promise<boolean> {
@@ -423,9 +462,7 @@ export class DuplicateTransactionPage extends BasePage {
   }
 
   async searchDuplicateTransactions(): Promise<void> {
-    const btn = this.page.getByRole('button', {
-      name: 'Search Duplicate Transactions',
-    });
+    const btn = this.searchDuplicateButton();
     await expect(btn).toBeVisible({ timeout: 45_000 });
     await btn.click();
   }
@@ -549,7 +586,20 @@ export class DuplicateTransactionPage extends BasePage {
       .locator('visible=true');
     if ((await refresh.count()) === 0) return;
     await refresh.first().click({ force: true }).catch(() => undefined);
+    await this.waitForFlagIconsOrSettle();
+  }
+
+  /**
+   * Transaction links paint before Flag icons. Wait for a Flagged image
+   * after rows exist so we do not treat a still-loading page as clean.
+   */
+  private async waitForFlagIconsOrSettle(): Promise<void> {
     await this.waitForReportRowsQuick().catch(() => undefined);
+    await this.page
+      .locator(DuplicateTransactionPage.FLAGGED_IMG)
+      .first()
+      .waitFor({ state: 'visible', timeout: 8_000 })
+      .catch(() => undefined);
   }
 
   /** Report pager digit buttons only — never Flow "Next" (same title, wrong control). */
