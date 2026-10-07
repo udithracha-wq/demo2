@@ -30,6 +30,12 @@ export class CustomWorld extends World {
   /** Shared scenario data — extend as needed */
   testData: Record<string, string> = {};
 
+  /**
+   * Soft failures: recorded without aborting the scenario so later steps still
+   * run. The After hook rethrows them so the scenario still fails overall.
+   */
+  softFailures: string[] = [];
+
   /** Repeat Contributor Code align results for the current scenario */
   contributorCodeChanges: ContributorCodeChange[] = [];
 

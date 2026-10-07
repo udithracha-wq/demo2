@@ -10,7 +10,8 @@ import * as path from 'path';
 import { CustomWorld } from './world';
 
 // Salesforce login + multi-flag Repeat Contributor flows need a long budget
-setDefaultTimeout(600_000);
+// Large Duplicate Transaction cases can clear 30+ flags (many minutes).
+setDefaultTimeout(1_800_000);
 
 Before(async function (this: CustomWorld) {
   await this.init();
@@ -19,8 +20,11 @@ Before(async function (this: CustomWorld) {
 After(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   const page = this.page;
   const context = this.context;
+  const softFailures = [...this.softFailures];
+  const failed =
+    scenario.result?.status === Status.FAILED || softFailures.length > 0;
 
-  if (page && scenario.result?.status === Status.FAILED) {
+  if (page && failed) {
     const screenshotsDir = path.resolve('test-results/screenshots');
     fs.mkdirSync(screenshotsDir, { recursive: true });
     const safeName = scenario.pickle.name.replace(/[^a-z0-9-_]/gi, '_');
@@ -49,4 +53,13 @@ After(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   this.page = null;
   this.context = null;
   this.browser = null;
+
+  // Soft failures (e.g. Election Type defect) must still fail the scenario
+  // after later steps have been given a chance to run.
+  if (softFailures.length > 0) {
+    throw new Error(
+      `${softFailures.length} soft-failed check(s) after the rest of the ` +
+        `scenario ran:\n\n${softFailures.join('\n\n')}`
+    );
+  }
 });

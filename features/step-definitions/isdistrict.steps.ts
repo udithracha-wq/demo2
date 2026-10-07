@@ -27,7 +27,10 @@ When(
 
 When('I save Audit Matching Claim Data', async function (this: CustomWorld) {
   const page = new IsDistrictPage(this.page!);
-  const updated = Number(this.testData.isDistrictUpdatedCount || '0');
+  const updated = Math.max(
+    Number(this.testData.isDistrictUpdatedCount || '0'),
+    Number(this.testData.supportingDocsUpdatedCount || '0')
+  );
   await page.saveAuditMatchingClaimData({ requireEdits: updated > 0 });
 });
 
@@ -35,10 +38,12 @@ Then('Audit Matching Claim Data should be saved successfully', async function (
   this: CustomWorld
 ) {
   const page = new IsDistrictPage(this.page!);
-  const updated = Number(this.testData.isDistrictUpdatedCount || '0');
+  const updated = Math.max(
+    Number(this.testData.isDistrictUpdatedCount || '0'),
+    Number(this.testData.supportingDocsUpdatedCount || '0')
+  );
   await page.expectSavedSuccessfully({ requireToast: updated > 0 });
 });
-
 Then(
   'I should report all In District Confirmed transaction numbers marked {word}',
   async function (this: CustomWorld, value: string) {

@@ -161,7 +161,15 @@ Then('Election Type should not be editable', async function (
   this: CustomWorld
 ) {
   const auditor1Page = new Auditor1Page(this.page!);
-  await auditor1Page.expectElectionTypeNotEditable();
+  // Soft-fail: keep the defect visible but continue the rest of the flow.
+  try {
+    await auditor1Page.expectElectionTypeNotEditable();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    this.softFailures.push(message);
+    console.warn(`SOFT FAIL — Election Type check:\n${message}`);
+    await this.attach(`SOFT FAIL — Election Type:\n${message}`, 'text/plain');
+  }
 });
 
 Then(

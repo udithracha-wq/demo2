@@ -1,13 +1,13 @@
-import { expect, test } from './fixtures';
+import { expect, test } from '../fixtures';
 import {
   CommitteeCasesPage,
   type CommitteeCase,
-} from '../pages/CommitteeCasesPage';
+} from '../../pages/CommitteeCasesPage';
 
 /** Port of features/auditor1.feature */
 const cases = [
   {
-    committee: 'Scott Comegys for New York State',
+    committee: 'David for Queens 2026',
     caseRecordType: 'Eligibility Review Case',
     status: 'New',
     party: 'Republican',
@@ -70,9 +70,16 @@ test.describe('NYselections Auditor1', () => {
         await auditor1.selectParty(data.party);
       });
 
-      // Check 2
+      // Check 2 — soft-fail so later steps still run; rethrow at the end.
+      let electionTypeSoftFail: string | null = null;
       await test.step('Election Type is not editable', async () => {
-        await auditor1.expectElectionTypeNotEditable();
+        try {
+          await auditor1.expectElectionTypeNotEditable();
+        } catch (err) {
+          electionTypeSoftFail =
+            err instanceof Error ? err.message : String(err);
+          console.warn(`SOFT FAIL — Election Type check:\n${electionTypeSoftFail}`);
+        }
       });
 
       await test.step('complete the eligibility questionnaire answering Yes', async () => {
@@ -137,6 +144,13 @@ test.describe('NYselections Auditor1', () => {
             `case for election year ${electionYear}: ${rejected.join(', ')}`
         );
       });
+
+      if (electionTypeSoftFail) {
+        throw new Error(
+          `1 soft-failed check(s) after the rest of the scenario ran:\n\n` +
+            electionTypeSoftFail
+        );
+      }
     });
   }
 });

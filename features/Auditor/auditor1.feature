@@ -20,7 +20,7 @@ Feature: NYselections Auditor1 Eligibility Review
 
     When I open the Committee Eligibility flow
     And I select "<Party>" for party selection
-    # Check 2 — Election Type is display-only on the flow screen
+    # Check 2 — Election Type is display-only (soft-fails so later steps still run)
     Then Election Type should not be editable
 
     When I complete the eligibility questionnaire answering Yes
@@ -36,4 +36,4 @@ Feature: NYselections Auditor1 Eligibility Review
     # the sandbox calls them "Pre-Payment Review" and "Matching Claim Review".
     Examples:
       | Committee                        | CaseRecordType          | Status | Party      | PrimaryAuditor | FollowOnCaseRecordType | FollowOnStatus        |
-      | Scott Comegys for New York State | Eligibility Review Case | New    | Republican | Udith Racha    | Pre-Payment Review     | Matching Claim Review |
+      | David for Queens 2026 | Eligibility Review Case | New    | Republican | Udith Racha    | Pre-Payment Review     | Matching Claim Review |
