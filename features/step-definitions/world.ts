@@ -22,6 +22,14 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
  */
 const BASE_URL = process.env.BASE_URL || 'https://example.com';
 
+/** Per-step result collected by AfterStep for failure progress reports */
+export type StepProgress = {
+  text: string;
+  keyword: string;
+  status: string;
+  error?: string;
+};
+
 export class CustomWorld extends World {
   browser: Browser | null = null;
   context: BrowserContext | null = null;
@@ -35,6 +43,9 @@ export class CustomWorld extends World {
    * run. The After hook rethrows them so the scenario still fails overall.
    */
   softFailures: string[] = [];
+
+  /** Step-by-step progress for the current scenario (used on failure) */
+  stepProgress: StepProgress[] = [];
 
   /** Repeat Contributor Code align results for the current scenario */
   contributorCodeChanges: ContributorCodeChange[] = [];

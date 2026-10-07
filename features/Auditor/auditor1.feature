@@ -36,4 +36,4 @@ Feature: NYselections Auditor1 Eligibility Review
     # the sandbox calls them "Pre-Payment Review" and "Matching Claim Review".
     Examples:
       | Committee                        | CaseRecordType          | Status | Party      | PrimaryAuditor | FollowOnCaseRecordType | FollowOnStatus        |
-      | David for Queens 2026 | Eligibility Review Case | New    | Republican | Udith Racha    | Pre-Payment Review     | Matching Claim Review |
+      |Scott Comegys for New York State          | Eligibility Review Case | New    | Republican | Udith Racha    | Pre-Payment Review     | Matching Claim Review |
