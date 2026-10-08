@@ -27,15 +27,17 @@ export class IsDistrictPage extends BasePage {
   }
 
   async openAuditMatchingClaimData(): Promise<void> {
-    const btn = this.page.getByRole('button', {
-      name: /Audit Matching Claim Data/i,
-    });
-    await expect(btn).toBeVisible({ timeout: 60_000 });
-    await btn.click();
+    await this.withRefreshRetry(async () => {
+      const btn = this.page.getByRole('button', {
+        name: /Audit Matching Claim Data/i,
+      });
+      await expect(btn).toBeVisible({ timeout: 60_000 });
+      await btn.click();
 
-    await expect(this.reportTitle()).toBeVisible({ timeout: 90_000 });
-    await this.waitForDistrictCells();
-    await this.ensureGroupByOff();
+      await expect(this.reportTitle()).toBeVisible({ timeout: 90_000 });
+      await this.waitForDistrictCells();
+      await this.ensureGroupByOff();
+    }, 'Audit Matching Claim Data');
   }
 
   /** Flat table is more reliable for empty-cell edits than grouped view */

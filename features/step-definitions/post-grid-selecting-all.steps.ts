@@ -16,6 +16,11 @@ When(
     const result = await page.selectAllAndConfirmUntilCompleted();
     this.testData.postGridBatches = String(result.batches);
     this.testData.postGridLastMessage = result.lastMessage;
+    this.recordObservation(
+      result.batches === 0
+        ? 'PostGrid Selecting All: all transactions were already reviewed.'
+        : `PostGrid Selecting All: confirmed ${result.batches} batch(es) until all transactions were reviewed.`
+    );
   }
 );
 

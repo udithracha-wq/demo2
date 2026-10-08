@@ -12,6 +12,11 @@ When(
     this.contributorCodeChanges = changes;
     this.scannedContributorRows = page.getLastCollectedRows();
     this.testData.clearedSharedRows = String(changes.length);
+    this.recordObservation(
+      changes.length === 0
+        ? 'Clear Shared Repeat Contributor Code: no shared codes to clear.'
+        : `Clear Shared Repeat Contributor Code: cleared ${changes.length} shared code(s).`
+    );
   }
 );
 

@@ -85,13 +85,16 @@ export class PostGridSelectingAllPage extends BasePage {
   }
 
   async openPostGridInDistrictAuditReport(): Promise<void> {
-    const btn = this.page.getByRole('button', {
-      name: 'PostGrid In-District Audit',
-    });
-    await expect(btn).toBeVisible({ timeout: 60_000 });
-    await btn.click();
+    await this.withRefreshRetry(
+      () => this.openPostGridInDistrictAuditReportOnce(),
+      'PostGrid In-District Audit Report'
+    );
+  }
 
-    await expect(this.anyReportHeading()).toBeVisible({ timeout: 180_000 });
+  private async openPostGridInDistrictAuditReportOnce(): Promise<void> {
+    await this.clickPostGridAction();
+
+    await expect(this.anyReportHeading()).toBeVisible({ timeout: 45_000 });
 
     // Wait until either the green completion banner or a loaded grid appears.
     let state = '';
@@ -117,7 +120,7 @@ export class PostGridSelectingAllPage extends BasePage {
           return false;
         },
         {
-          timeout: 180_000,
+          timeout: 45_000,
           message:
             'Expected PostGrid grid rows or "All Transactions are Reviewed".',
         }
@@ -147,6 +150,42 @@ export class PostGridSelectingAllPage extends BasePage {
     );
   }
 
+  /**
+   * The case action is sometimes covered or tucked under Show more actions.
+   * Try the visible button, then the overflow menu, then a forced click.
+   */
+  private async clickPostGridAction(): Promise<void> {
+    const btn = this.page.getByRole('button', {
+      name: 'PostGrid In-District Audit',
+    });
+
+    if (await btn.isVisible({ timeout: 20_000 }).catch(() => false)) {
+      await btn.scrollIntoViewIfNeeded().catch(() => undefined);
+      try {
+        await btn.click({ timeout: 20_000 });
+        return;
+      } catch {
+        console.log(
+          'PostGrid button was visible but the click did not land. Trying Show more actions.'
+        );
+      }
+    }
+
+    const more = this.page.getByRole('button', { name: 'Show more actions' });
+    if (await more.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      await more.click();
+      const item = this.page
+        .getByRole('menuitem', { name: /PostGrid In-District Audit/i })
+        .or(btn);
+      await expect(item.first()).toBeVisible({ timeout: 15_000 });
+      await item.first().click();
+      return;
+    }
+
+    await expect(btn).toBeVisible({ timeout: 30_000 });
+    await btn.click({ force: true, timeout: 30_000 });
+  }
+
   async isAllTransactionsCompleted(): Promise<boolean> {
     return this.completedMessage()
       .isVisible({ timeout: 5_000 })
@@ -154,6 +193,19 @@ export class PostGridSelectingAllPage extends BasePage {
   }
 
   async expectAllTransactionsCompleted(): Promise<void> {
+    if (await this.isAllTransactionsCompleted()) {
+      console.log(
+        'Completion message:',
+        (await this.completedMessage().innerText().catch(() => ''))
+          .replace(/\s+/g, ' ')
+          .trim()
+      );
+      return;
+    }
+    console.log(
+      'PostGrid completion message was not visible. Refreshing and checking once more.'
+    );
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
     await expect(this.completedMessage()).toBeVisible({ timeout: 60_000 });
     console.log(
       'Completion message:',

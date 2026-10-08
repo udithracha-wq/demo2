@@ -1,5 +1,6 @@
 import {
   Before,
+  BeforeStep,
   After,
   AfterStep,
   Status,
@@ -171,9 +172,159 @@ export function buildFailureProgressReport(
   return lines.join('\n');
 }
 
+function isCombinedPrepaymentRun(scenario: ITestCaseHookParameter): boolean {
+  return isCombinedPickle(scenario.pickle);
+}
+
+function failureReason(value: unknown): string {
+  const raw =
+    value instanceof Error
+      ? value.message
+      : typeof value === 'string'
+        ? value
+        : '';
+  if (!raw.trim()) return 'No error text was captured.';
+  const lines = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const useful =
+    lines.find((line) =>
+      /still not as expected|Expected |flagged transactions|Timeout|element\(s\) not found/i.test(
+        line
+      )
+    ) || lines[0];
+  return useful;
+}
+
+/**
+ * Terminal summary for the combined prepayment scenario.
+ * Printed on pass and on failure so a plain `npm run bdd:tags` shows it.
+ */
+export function buildCombinedRunSummary(
+  scenarioName: string,
+  caseNumber: string,
+  passed: boolean,
+  pickleSteps: readonly PickleStepLike[],
+  stepProgress: StepProgress[],
+  observations: string[],
+  scenarioError?: unknown
+): string {
+  const lines: string[] = [
+    '',
+    '════════════════════════════════════════════════════════════',
+    'AUDITOR PREPAYMENT MATCHING CLAIMS — RUN SUMMARY',
+    `Scenario: ${scenarioName}`,
+    `Case: ${caseNumber || '(not opened)'}`,
+    `Result: ${passed ? 'PASSED' : 'FAILED'}`,
+    '════════════════════════════════════════════════════════════',
+    '',
+  ];
+
+  const passedChecks = stepProgress.filter(
+    (step) => step.keyword === 'Then' && step.status === Status.PASSED
+  );
+  lines.push(`CHECKS PASSED (${passedChecks.length}):`);
+  if (passedChecks.length === 0) {
+    lines.push('  (none)');
+  } else {
+    passedChecks.forEach((step, index) => {
+      lines.push(`  ${index + 1}. ${step.text}`);
+    });
+  }
+  lines.push('');
+
+  lines.push(`OBSERVATIONS (${observations.length}):`);
+  if (observations.length === 0) {
+    lines.push('  (none recorded)');
+  } else {
+    observations.forEach((note) => {
+      lines.push(`  - ${note}`);
+    });
+  }
+  lines.push('');
+
+  const failedSteps = stepProgress.filter(
+    (step) =>
+      step.status === Status.FAILED ||
+      step.status === Status.AMBIGUOUS ||
+      step.status === Status.UNDEFINED
+  );
+  lines.push(`CHECKS FAILED (${failedSteps.length}):`);
+  if (failedSteps.length === 0 && passed) {
+    lines.push('  none');
+  } else if (failedSteps.length === 0) {
+    lines.push(`  - ${failureReason(scenarioError)}`);
+  } else {
+    failedSteps.forEach((step, index) => {
+      const stepIndex = stepProgress.indexOf(step) + 1;
+      const why = failureReason(step.error || scenarioError);
+      lines.push(`  ${index + 1}. Step ${stepIndex}: ${step.keyword} ${step.text}`);
+      lines.push(`     Why: ${why}`);
+    });
+  }
+  lines.push('');
+
+  const stop = failedSteps[0];
+  const stopIndex = stop ? stepProgress.indexOf(stop) : -1;
+  if (!passed) {
+    lines.push('STOPPED AT:');
+    if (stop) {
+      lines.push(
+        `  Step ${stopIndex + 1}: ${stop.keyword} ${stop.text}`
+      );
+      lines.push(`  Why: ${failureReason(stop.error || scenarioError)}`);
+    } else {
+      lines.push(`  ${failureReason(scenarioError)}`);
+    }
+    lines.push('');
+
+    const notRun: string[] = [];
+    for (let i = (stopIndex >= 0 ? stopIndex + 1 : stepProgress.length); i < pickleSteps.length; i++) {
+      const fromProgress = stepProgress[i];
+      notRun.push(
+        fromProgress
+          ? formatStepLine(i + 1, fromProgress.keyword, fromProgress.text)
+          : formatStepLine(i + 1, stepKeyword(pickleSteps[i]), pickleSteps[i].text)
+      );
+    }
+    lines.push(`NOT RUN (${notRun.length}):`);
+    if (notRun.length === 0) {
+      lines.push('  (none — the failure was on the last step)');
+    } else {
+      lines.push(...notRun);
+    }
+    lines.push('');
+  }
+  lines.push('════════════════════════════════════════════════════════════');
+  lines.push('');
+  return lines.join('\n');
+}
+
+function isCombinedPickle(pickle: {
+  name: string;
+  tags: readonly { name: string }[];
+}): boolean {
+  return (
+    pickle.tags.some(
+      (tag) =>
+        tag.name === '@AuditorPrepaymentMatchingClaimsPositive' ||
+        tag.name === '@AuditorPrepaymentMatchingClaimsNegative'
+    ) ||
+    pickle.name.includes('positive prepayment matching claims') ||
+    pickle.name.includes('negative prepayment matching claims')
+  );
+}
+
+BeforeStep(function ({ pickle, pickleStep }) {
+  if (!isCombinedPickle(pickle)) return;
+  console.log(`\n→ ${stepKeyword(pickleStep)} ${pickleStep.text}`);
+});
+
 Before(async function (this: CustomWorld) {
   this.stepProgress = [];
   this.softFailures = [];
+  this.runObservations = [];
   await this.init();
 });
 
@@ -199,6 +350,29 @@ After(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   const softFailures = [...this.softFailures];
   const failed =
     scenario.result?.status === Status.FAILED || softFailures.length > 0;
+
+  if (
+    this.testData.noDuplicateFlagsFound === 'true' &&
+    !isCombinedPrepaymentRun(scenario)
+  ) {
+    const note = 'No duplicate flags were found.';
+    console.log(note);
+    await this.attach(note, 'text/plain');
+  }
+
+  if (isCombinedPrepaymentRun(scenario)) {
+    const summary = buildCombinedRunSummary(
+      scenario.pickle.name,
+      this.testData.caseNumber || '',
+      !failed,
+      scenario.pickle.steps,
+      this.stepProgress,
+      this.runObservations,
+      scenario.error ?? scenario.result?.message
+    );
+    console.log(summary);
+    await this.attach(summary, 'text/plain');
+  }
 
   if (failed) {
     const report = buildFailureProgressReport(

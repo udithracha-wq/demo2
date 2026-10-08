@@ -47,6 +47,12 @@ export class CustomWorld extends World {
   /** Step-by-step progress for the current scenario (used on failure) */
   stepProgress: StepProgress[] = [];
 
+  /**
+   * Findings collected during the scenario (empty scans, counts changed).
+   * Printed in the terminal summary even when the scenario passes.
+   */
+  runObservations: string[] = [];
+
   /** Repeat Contributor Code align results for the current scenario */
   contributorCodeChanges: ContributorCodeChange[] = [];
 
@@ -55,6 +61,11 @@ export class CustomWorld extends World {
 
   constructor(options: IWorldOptions) {
     super(options);
+  }
+
+  recordObservation(note: string): void {
+    this.runObservations.push(note);
+    console.log(`Observation: ${note}`);
   }
 
   async init(): Promise<void> {

@@ -17,6 +17,12 @@ When(
     this.testData.isDistrictValue = /^yes$/i.test(value.trim()) ? 'Yes' : 'No';
     this.testData.isDistrictUpdatedCount = String(transactionNumbers.length);
     this.testData.isDistrictTransactionNumbers = transactionNumbers.join(',');
+    const marked = /^yes$/i.test(value.trim()) ? 'Yes' : 'No';
+    this.recordObservation(
+      transactionNumbers.length === 0
+        ? `Is District ${marked}: no empty In District Confirmed values to mark ${marked}.`
+        : `Is District ${marked}: marked ${transactionNumbers.length} transaction(s) ${marked}.`
+    );
     this.testData.isDistrictReportPath = page.reportMarkedTransactions(
       this.testData.caseNumber || '',
       transactionNumbers,

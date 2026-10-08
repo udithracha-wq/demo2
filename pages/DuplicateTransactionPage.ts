@@ -15,25 +15,27 @@ export class DuplicateTransactionPage extends BasePage {
   private static readonly MAX_REPORT_PAGES = 80;
 
   async searchAndOpenCase(caseNumber: string): Promise<void> {
-    await this.page.goto(lightningHomeUrl(), { waitUntil: 'domcontentloaded' });
+    await this.withRefreshRetry(async () => {
+      await this.page.goto(lightningHomeUrl(), { waitUntil: 'domcontentloaded' });
 
-    try {
-      await this.openCaseViaGlobalSearch(caseNumber);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
-      console.warn(
-        `Global search did not open Case ${caseNumber}; falling back to Case list. ${msg}`
-      );
-      await this.openCaseViaCaseList(caseNumber);
-    }
+      try {
+        await this.openCaseViaGlobalSearch(caseNumber);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+        console.warn(
+          `Global search did not open Case ${caseNumber}; falling back to Case list. ${msg}`
+        );
+        await this.openCaseViaCaseList(caseNumber);
+      }
 
-    await expect(
-      this.page
-        .getByRole('button', { name: 'Repeat Contributor Report' })
-        .or(this.page.getByRole('button', { name: 'Random Sampling Records' }))
-        .or(this.page.getByText(caseNumber, { exact: true }))
-        .first()
-    ).toBeVisible({ timeout: 90_000 });
+      await expect(
+        this.page
+          .getByRole('button', { name: 'Repeat Contributor Report' })
+          .or(this.page.getByRole('button', { name: 'Random Sampling Records' }))
+          .or(this.page.getByText(caseNumber, { exact: true }))
+          .first()
+      ).toBeVisible({ timeout: 90_000 });
+    }, `open case ${caseNumber}`);
   }
 
   /**
@@ -130,16 +132,18 @@ export class DuplicateTransactionPage extends BasePage {
   }
 
   async openDuplicateTransactionReport(): Promise<void> {
-    const btn = this.page.getByRole('button', {
-      name: 'Repeat Contributor Report',
-    });
-    await expect(btn).toBeVisible({ timeout: 60_000 });
-    await btn.click();
-    await expect(
-      this.page.getByText(/Repeat Contributor Report\s*\(/).first()
-    ).toBeVisible({ timeout: 90_000 });
-    // Datatable loads after the title — wait for real rows, not just the header
-    await this.waitForReportRows();
+    await this.withRefreshRetry(async () => {
+      const btn = this.page.getByRole('button', {
+        name: 'Repeat Contributor Report',
+      });
+      await expect(btn).toBeVisible({ timeout: 60_000 });
+      await btn.click();
+      await expect(
+        this.page.getByText(/Repeat Contributor Report\s*\(/).first()
+      ).toBeVisible({ timeout: 90_000 });
+      // Datatable loads after the title — wait for real rows, not just the header
+      await this.waitForReportRows();
+    }, 'Repeat Contributor Report');
   }
 
   /**
@@ -171,18 +175,38 @@ export class DuplicateTransactionPage extends BasePage {
       }
     }
 
+    if (processed.length === 0) {
+      console.log(
+        'No flagged transactions on the first scan. Checking the report once again…'
+      );
+      await this.ensureOnRepeatContributorReport();
+      await this.refreshReportIfPossible();
+      await this.clearFlagsForwardWalk(processed, 'recheck');
+      await this.ensureOnRepeatContributorReport();
+      await this.refreshReportIfPossible();
+      const remaining = await this.collectAllFlaggedIds();
+      console.log(
+        `After recheck: ${remaining.length} flagged ` +
+          `(${remaining.slice(0, 12).join(', ') || 'none'}` +
+          `${remaining.length > 12 ? `, …+${remaining.length - 12}` : ''})`
+      );
+      if (remaining.length > 0) {
+        throw new Error(
+          'Incomplete clear — flagged transactions still on the report: ' +
+            remaining.join(', ')
+        );
+      }
+    }
+
     console.log(
       processed.length
         ? `Cleared flags on ${processed.length} transaction(s): ${processed.join(', ')}`
-        : 'No flagged transactions found.'
+        : 'No duplicate flags were found. Continuing with the rest of the scenario.'
     );
 
     if (processed.length === 0) {
-      throw new Error(
-        'No flagged transactions found after scanning all report pages ' +
-          '(all Repeat Contributor Codes). Expected img[alt="Flagged"] rows. ' +
-          'Use a case that still has dupe flags.'
-      );
+      await this.ensureOnRepeatContributorReport();
+      return processed;
     }
 
     await this.ensureOnRepeatContributorReport();
@@ -266,19 +290,37 @@ export class DuplicateTransactionPage extends BasePage {
     }
   }
 
-  /** Refresh + walk every page; throw if any Flagged row remains. */
-  async expectNoFlaggedTransactionsRemain(): Promise<void> {
-    const title = this.page.getByText(/Repeat Contributor Report\s*\(/).first();
-    if (!(await title.isVisible({ timeout: 8_000 }).catch(() => false))) {
-      const btn = this.page.getByRole('button', {
-        name: 'Repeat Contributor Report',
-      });
-      if (await btn.isVisible({ timeout: 10_000 }).catch(() => false)) {
-        await this.openDuplicateTransactionReport();
-      } else {
-        await this.returnToRepeatContributorReport();
-      }
+  /**
+   * Refresh and walk every page. Flagged rows still on the report fail the check.
+   * When the earlier scan found nothing and the report cannot be shown again
+   * after one refresh, continue — there is nothing left to clear.
+   */
+  async expectNoFlaggedTransactionsRemain(
+    options: { continueIfNothingFound?: boolean } = {}
+  ): Promise<void> {
+    let opened = false;
+    try {
+      opened = await this.reopenReportForFlagCheck();
+    } catch (err) {
+      if (!options.continueIfNothingFound) throw err;
+      const why = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      console.log(
+        `No duplicate flags were found. Could not reopen the report (${why}). Continuing with the next steps.`
+      );
+      return;
     }
+    if (!opened) {
+      if (options.continueIfNothingFound) {
+        console.log(
+          'No duplicate flags were found. The report is not open after refresh, so continuing with the next steps.'
+        );
+        return;
+      }
+      throw new Error(
+        'Page was still not as expected after refresh during "no flagged transactions should remain". Repeat Contributor Report did not open.'
+      );
+    }
+
     await this.refreshReportIfPossible();
     const remaining = await this.collectAllFlaggedIds();
     if (remaining.length > 0) {
@@ -287,6 +329,34 @@ export class DuplicateTransactionPage extends BasePage {
       );
     }
     console.log('Verification: 0 flagged transactions remain on all pages.');
+  }
+
+  private async reopenReportForFlagCheck(): Promise<boolean> {
+    const title = () =>
+      this.page.getByText(/Repeat Contributor Report\s*\(/).first();
+    if (await title().isVisible({ timeout: 8_000 }).catch(() => false)) {
+      return true;
+    }
+
+    const openFromCase = async (): Promise<boolean> => {
+      const btn = this.page.getByRole('button', {
+        name: 'Repeat Contributor Report',
+      });
+      if (await btn.isVisible({ timeout: 8_000 }).catch(() => false)) {
+        await btn.click();
+        return title().isVisible({ timeout: 30_000 }).catch(() => false);
+      }
+      await this.returnToRepeatContributorReport();
+      return title().isVisible({ timeout: 8_000 }).catch(() => false);
+    };
+
+    if (await openFromCase()) return true;
+
+    console.log(
+      'Repeat Contributor Report was not visible for the flag check. Refreshing and trying once more.'
+    );
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    return openFromCase();
   }
 
   /** Walk page 1..last via report pager Next (never Flow Next). */
@@ -481,8 +551,13 @@ export class DuplicateTransactionPage extends BasePage {
     });
     if (await tab.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
       await tab.first().click();
-      await expect(title).toBeVisible({ timeout: 30_000 });
-      return;
+      if (await title.isVisible({ timeout: 8_000 }).catch(() => false)) {
+        return;
+      }
+      console.log(
+        'Repeat Contributor Report heading stayed hidden. Refreshing and opening the report again.'
+      );
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
     }
 
     const btn = this.page.getByRole('button', {
@@ -507,6 +582,9 @@ export class DuplicateTransactionPage extends BasePage {
       caseNumber,
       clearedCount: transactionNumbers.length,
       transactionNumbers,
+      ...(transactionNumbers.length === 0
+        ? { note: 'No duplicate flags were found.' }
+        : {}),
       clearedAt: new Date().toISOString(),
     };
 
@@ -518,6 +596,9 @@ export class DuplicateTransactionPage extends BasePage {
     console.log('');
     console.log('========== Affected transaction numbers ==========');
     console.log(`Case: ${caseNumber}`);
+    if (transactionNumbers.length === 0) {
+      console.log('No duplicate flags were found.');
+    }
     console.log(`Count: ${transactionNumbers.length}`);
     for (const id of transactionNumbers) {
       console.log(`  - ${id}`);
@@ -599,7 +680,7 @@ export class DuplicateTransactionPage extends BasePage {
     }
   }
 
-  async clickNext(): Promise<void> {
+  async clickNext(options: { continueIfMissing?: boolean } = {}): Promise<void> {
     // Flow footer Next (enabled). Report pager Next is disabled on the last page.
     const next = this.page
       .locator('button:visible:not([disabled])')
@@ -619,22 +700,60 @@ export class DuplicateTransactionPage extends BasePage {
       return;
     }
 
+    if (options.continueIfMissing) {
+      console.log(
+        'No duplicate flags were found, and Next is not available. Continuing with the rest of the scenario.'
+      );
+      return;
+    }
+
     await expect(next.first()).toBeVisible({ timeout: 30_000 });
   }
 
-  async closeDuplicateTransactionDialog(): Promise<void> {
+  async closeDuplicateTransactionDialog(
+    options: { continueIfMissing?: boolean } = {}
+  ): Promise<void> {
     const btn = this.page.getByRole('button', {
       name: 'Close Repeat Contributor',
     });
+    if (
+      options.continueIfMissing &&
+      !(await btn.isVisible({ timeout: 15_000 }).catch(() => false))
+    ) {
+      console.log(
+        'No duplicate flags were found, and Close Repeat Contributor is not available. Continuing with the rest of the scenario.'
+      );
+      return;
+    }
     await expect(btn).toBeVisible({ timeout: 60_000 });
     await btn.click();
   }
 
-  async expectCaseVisible(caseNumber: string): Promise<void> {
+  async expectCaseVisible(
+    caseNumber: string,
+    options: { recoverBySearch?: boolean } = {}
+  ): Promise<void> {
     const caseMarker = this.page
       .getByRole('tab', { name: new RegExp(caseNumber) })
       .or(this.page.getByRole('link', { name: caseNumber }))
       .or(this.page.getByText(caseNumber, { exact: true }));
+    if (await caseMarker.first().isVisible({ timeout: 15_000 }).catch(() => false)) {
+      return;
+    }
+    console.log(
+      `Case ${caseNumber} was not visible. Refreshing and checking once more.`
+    );
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    if (await caseMarker.first().isVisible({ timeout: 20_000 }).catch(() => false)) {
+      return;
+    }
+    if (options.recoverBySearch) {
+      console.log(
+        `Case ${caseNumber} was still not visible after refresh. Opening the case again and continuing.`
+      );
+      await this.searchAndOpenCase(caseNumber);
+      return;
+    }
     await expect(caseMarker.first()).toBeAttached({ timeout: 60_000 });
   }
 

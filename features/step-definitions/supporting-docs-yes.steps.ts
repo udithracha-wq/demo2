@@ -14,6 +14,11 @@ When(
     );
     this.testData.supportingDocsTransactionNumbers =
       transactionNumbers.join(',');
+    this.recordObservation(
+      transactionNumbers.length === 0
+        ? 'Supporting Docs Yes: no rows needed Contribution Supporting Docs Received set to Yes.'
+        : `Supporting Docs Yes: marked ${transactionNumbers.length} transaction(s) Yes.`
+    );
     this.testData.supportingDocsReportPath = page.reportMarkedTransactions(
       this.testData.caseNumber || '',
       transactionNumbers

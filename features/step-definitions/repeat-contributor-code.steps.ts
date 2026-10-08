@@ -19,6 +19,17 @@ When(
     this.contributorCodeChanges = changes;
     this.scannedContributorRows = page.getLastCollectedRows();
     this.testData.alignedRows = String(changes.length);
+    const pass = Number(this.testData.alignPassCount || '0') + 1;
+    this.testData.alignPassCount = String(pass);
+    const label =
+      pass === 1
+        ? 'Repeat Contributor Code'
+        : 'Repeat Contributor Code recheck';
+    this.recordObservation(
+      changes.length === 0
+        ? `${label}: no repeat contributor codes needed alignment.`
+        : `${label}: aligned ${changes.length} repeat contributor code(s).`
+    );
   }
 );
 
