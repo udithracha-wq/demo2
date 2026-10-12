@@ -11,7 +11,9 @@ Feature: Auditor Prepayment Matching Claims Positive
   2. Clear Repeat Contributor Codes shared across different names
   3. Align Repeat Contributor Codes again
   4. Clear duplicate transaction flags
-  5. Select all PostGrid rows until every transaction is reviewed
+  5. Select all PostGrid rows until All Transactions are Reviewed.
+     If that banner is already showing when the report opens, that is expected.
+     Print the banner message and do not treat it as a failure.
   6. Set Contribution Supporting Docs Received to Yes
   7. Set empty In District Confirmed values to Yes
 
@@ -52,8 +54,8 @@ Feature: Auditor Prepayment Matching Claims Positive
     # 5. PostGrid Selecting All
     When I search for and open case "<CaseNumber>"
     And I open PostGrid In-District Audit Report
-    And I select all PostGrid checkboxes and Confirm and Next until all transactions are completed
-    Then I should see that all PostGrid transactions are completed
+    And I select all PostGrid checkboxes and Confirm and Next until All Transactions are Reviewed
+    Then I should see the message "All Transactions are Reviewed"
 
     # 6. Supporting Docs Yes
     When I search for and open case "<CaseNumber>"
@@ -73,4 +75,4 @@ Feature: Auditor Prepayment Matching Claims Positive
 
     Examples:
       | CaseNumber |
-      | 00120859   |
+      | 00120865   |

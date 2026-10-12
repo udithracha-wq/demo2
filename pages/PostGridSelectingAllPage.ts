@@ -35,12 +35,31 @@ export class PostGridSelectingAllPage extends BasePage {
     return this.page
       .getByText(PostGridSelectingAllPage.COMPLETED_MESSAGE)
       .or(
-        this.page.locator(
-          '.slds-theme_success, .slds-notify, .slds-alert, .slds-badge, ' +
-            '[class*="success"], [class*="banner"]'
-        ).filter({ hasText: PostGridSelectingAllPage.COMPLETED_MESSAGE })
+        this.page
+          .locator(
+            '.slds-theme_success, .slds-notify, .slds-alert, .slds-badge, ' +
+              '[class*="success"], [class*="banner"]'
+          )
+          .filter({ hasText: PostGridSelectingAllPage.COMPLETED_MESSAGE })
       )
       .first();
+  }
+
+  /**
+   * Green banner shown when every PostGrid row is already confirmed.
+   * Returns the banner text, or null when the report still has work left.
+   */
+  private async readReviewedBanner(): Promise<string | null> {
+    const banner = this.completedMessage();
+    const visible = await banner
+      .isVisible({ timeout: 1_500 })
+      .catch(() => false);
+    if (!visible) return null;
+
+    const text = (await banner.innerText().catch(() => ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text || 'All Transactions are Reviewed';
   }
 
   private anyReportHeading(): Locator {
@@ -96,16 +115,19 @@ export class PostGridSelectingAllPage extends BasePage {
 
     await expect(this.anyReportHeading()).toBeVisible({ timeout: 45_000 });
 
+    const alreadyReviewed = await this.readReviewedBanner();
+    if (alreadyReviewed) {
+      console.log(alreadyReviewed);
+      return;
+    }
+
     // Wait until either the green completion banner or a loaded grid appears.
     let state = '';
     await expect
       .poll(
         async () => {
-          if (
-            await this.completedMessage()
-              .isVisible()
-              .catch(() => false)
-          ) {
+          const banner = await this.readReviewedBanner();
+          if (banner) {
             state = 'reviewed';
             return true;
           }
@@ -127,8 +149,10 @@ export class PostGridSelectingAllPage extends BasePage {
       )
       .toBe(true);
 
-    if (state === 'reviewed' || (await this.isAllTransactionsCompleted())) {
-      console.log('Opened PostGrid report — All Transactions are Reviewed');
+    if (state === 'reviewed') {
+      console.log(
+        (await this.readReviewedBanner()) || 'All Transactions are Reviewed'
+      );
       return;
     }
 
@@ -187,31 +211,19 @@ export class PostGridSelectingAllPage extends BasePage {
   }
 
   async isAllTransactionsCompleted(): Promise<boolean> {
-    return this.completedMessage()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    return (await this.readReviewedBanner()) !== null;
   }
 
   async expectAllTransactionsCompleted(): Promise<void> {
-    if (await this.isAllTransactionsCompleted()) {
-      console.log(
-        'Completion message:',
-        (await this.completedMessage().innerText().catch(() => ''))
-          .replace(/\s+/g, ' ')
-          .trim()
-      );
+    const banner = await this.readReviewedBanner();
+    if (banner) {
+      console.log(banner);
       return;
     }
-    console.log(
-      'PostGrid completion message was not visible. Refreshing and checking once more.'
-    );
-    await this.page.reload({ waitUntil: 'domcontentloaded' });
+
     await expect(this.completedMessage()).toBeVisible({ timeout: 60_000 });
     console.log(
-      'Completion message:',
-      (await this.completedMessage().innerText().catch(() => ''))
-        .replace(/\s+/g, ' ')
-        .trim()
+      (await this.readReviewedBanner()) || 'All Transactions are Reviewed'
     );
   }
 
@@ -411,11 +423,10 @@ export class PostGridSelectingAllPage extends BasePage {
     let lastMessage = '';
 
     for (let i = 0; i < PostGridSelectingAllPage.MAX_BATCHES; i++) {
-      if (await this.isAllTransactionsCompleted()) {
-        console.log(
-          `All PostGrid transactions reviewed after ${batches} Confirm and Next batch(es).`
-        );
-        return { batches, lastMessage };
+      const reviewed = await this.readReviewedBanner();
+      if (reviewed) {
+        console.log(reviewed);
+        return { batches, lastMessage: reviewed };
       }
 
       const confirm = this.confirmAndNextButton();
@@ -425,12 +436,19 @@ export class PostGridSelectingAllPage extends BasePage {
 
       if (!confirmVisible) {
         const next = await this.waitForNextBatchOrReviewed();
-        if (next === 'reviewed') return { batches, lastMessage };
+        if (next === 'reviewed') {
+          const banner =
+            (await this.readReviewedBanner()) || 'All Transactions are Reviewed';
+          console.log(banner);
+          return { batches, lastMessage: banner };
+        }
       }
 
       await this.ensureAllCheckboxesChecked();
-      if (await this.isAllTransactionsCompleted()) {
-        return { batches, lastMessage };
+      const reviewedAfterSelect = await this.readReviewedBanner();
+      if (reviewedAfterSelect) {
+        console.log(reviewedAfterSelect);
+        return { batches, lastMessage: reviewedAfterSelect };
       }
 
       lastMessage = await this.clickConfirmAndNext();
@@ -443,10 +461,10 @@ export class PostGridSelectingAllPage extends BasePage {
 
       const next = await this.waitForNextBatchOrReviewed();
       if (next === 'reviewed') {
-        console.log(
-          `All PostGrid transactions reviewed after ${batches} Confirm and Next batch(es).`
-        );
-        return { batches, lastMessage };
+        const banner =
+          (await this.readReviewedBanner()) || lastMessage || 'All Transactions are Reviewed';
+        console.log(banner);
+        return { batches, lastMessage: banner };
       }
     }
 
